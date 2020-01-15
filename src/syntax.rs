@@ -1,31 +1,28 @@
 use im::vector;
 use im::Vector;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use string_interner::{StringInterner, Sym};
 
-#[derive(Debug, Clone)]
-pub enum Token {
-    Var(Sym),
-    Lit(Sym),
+#[derive(Debug, Clone, PartialEq)]
+pub enum Token<T = Sym> {
+    Var(T),
+    Lit(T),
 }
 
 #[derive(Debug)]
 pub struct Rule {
-    head: Sym,
-    pred: Vector<(Sym, Sym)>,
-    body: Vector<Token>,
+    pub(crate) head: Sym,
+    pub(crate) pred: Vector<(Sym, Sym)>,
+    pub(crate) body: Vector<Token>,
 }
 
 #[derive(Debug)]
 pub struct Grammar {
-    rules: Vec<Rule>,
+    pub(crate) rules: Vec<Rule>,
 }
 
 impl Grammar {
-    #[allow(unused)]
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     /// Psuedo-code:
     /// Start with the start symbol. Call this `sentence`.
     /// Repeat until there are no non-terminals in `sentence`:
@@ -37,11 +34,11 @@ impl Grammar {
     ///             Append it's body onto the new sentence.
     pub fn generate(
         &self,
-        syms: &mut StringInterner<Sym>,
+        syms: Rc<RefCell<StringInterner<Sym>>>,
         rng: &mut impl rand::Rng,
-        state: &mut HashMap<Sym, Sym>,
+        _state: &mut HashMap<Sym, Sym>,
     ) -> String {
-        let start = syms.get_or_intern("start");
+        let start = syms.borrow_mut().get_or_intern("start");
         let mut sentence = vector![Token::Var(start)];
         let mut more_todo = true;
 
@@ -52,13 +49,12 @@ impl Grammar {
             let mut new_sentence = Vector::new();
 
             for token in sentence.clone() {
-                dbg!(sentence.clone());
                 match token {
                     Token::Lit(_) => new_sentence.push_back(token.clone()),
                     Token::Var(sym) => {
                         more_todo = true;
                         // Collect all rules that *could* expand `token`.
-                        let mut possiblilties = self
+                        let possiblilties = self
                             .rules
                             .iter()
                             .filter(|rule| rule.head == sym)
@@ -67,7 +63,10 @@ impl Grammar {
                         if let Some(rule) = possiblilties.choose(rng) {
                             new_sentence.append(rule.body.clone());
                         } else {
-                            panic!("oops, `{:?}` is not a known rule head!", syms.resolve(sym));
+                            panic!(
+                                "oops, `{:?}` is not a known rule head!",
+                                syms.borrow().resolve(sym)
+                            );
                         }
                         sentence = new_sentence.clone();
                     }
@@ -75,25 +74,31 @@ impl Grammar {
             }
         }
 
-        sentence
-            .iter()
-            .map(|tok| match *tok {
-                Token::Lit(s) => syms.resolve(s).expect("able to un-intern Sym"),
+        let mut buf = String::new();
+        for token in sentence {
+            match token {
+                Token::Lit(s) => {
+                    let syms_ref = syms.borrow();
+                    let lit = syms_ref.resolve(s).expect("able to un-intern Sym");
+                    buf.push_str(lit);
+                }
                 Token::Var(s) => panic!(
                     "Still non-terminal {:?} left in final sentence!",
-                    syms.resolve(s).expect("able to un-intern Sym")
+                    syms.borrow().resolve(s).expect("able to un-intern Sym")
                 ),
-            })
-            .collect()
+            }
+        }
+        buf
     }
 }
 
 #[test]
 fn test_construction() {
+    use rand::thread_rng;
     use string_interner::StringInterner;
 
-    let mut syms = StringInterner::default();
-    let mut sym = |s: &str| syms.get_or_intern(s);
+    let syms = Rc::new(RefCell::new(StringInterner::default()));
+    let sym = |s: &str| syms.borrow_mut().get_or_intern(s);
 
     let g = Grammar {
         rules: vec![
@@ -109,5 +114,5 @@ fn test_construction() {
             },
         ],
     };
-    dbg!(g.generate(&mut syms, &mut thread_rng(), &mut HashMap::new()));
+    dbg!(g.generate(syms, &mut thread_rng(), &mut HashMap::new()));
 }
