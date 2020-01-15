@@ -68,9 +68,9 @@ impl Grammar {
                                 syms.borrow().resolve(sym)
                             );
                         }
-                        sentence = new_sentence.clone();
                     }
                 }
+                sentence = new_sentence.clone();
             }
         }
 
