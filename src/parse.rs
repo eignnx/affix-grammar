@@ -4,11 +4,11 @@ use nom::{
     branch::alt,
     bytes::complete::{escaped, is_not, tag},
     character::complete::{char, multispace0, multispace1, one_of},
-    combinator::map,
+    combinator::{map, opt},
     eof,
     multi::{many1, separated_list, separated_nonempty_list},
     re_find,
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -165,27 +165,28 @@ fn test_sentence() {
 fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
     let variable = |input| variable(input, syms.clone());
     let meta = |input| meta(input, syms.clone());
-    let optional_meta_guard = alt((
-        delimited(multispace0, meta, multispace0),
-        map(multispace0, |_| vector![]),
-    ));
-    let arrow = tuple((tag("->"), multispace0));
     let pipe = delimited(multispace0, char('|'), multispace0);
+    let arrow = terminated(tag("->"), multispace0);
+    let optional_meta_guard = opt(delimited(multispace0, meta, multispace0));
+    let optional_meta_guard = map(optional_meta_guard, |x| x.unwrap_or(vector![]));
     let sentence = |input| sentence(input, syms.clone());
+    let abbrev_rule = separated_pair(optional_meta_guard, arrow, sentence);
     let semicolon = preceded(multispace0, char(';'));
-    let (rest, (head, meta, _, bodies, _)) = tuple((
-        variable,
-        optional_meta_guard,
-        arrow,
-        separated_list(pipe, sentence),
-        semicolon,
-    ))(input)?;
 
-    let rules = bodies
+    let (rest, (head, abbrev_rules)) = terminated(
+        separated_pair(
+            terminated(variable, multispace0),
+            opt(&pipe),
+            separated_nonempty_list(&pipe, abbrev_rule),
+        ),
+        semicolon,
+    )(input)?;
+
+    let rules = abbrev_rules
         .into_iter()
-        .map(|body| Rule {
+        .map(|(meta_guard, body)| Rule {
             head: head.clone(),
-            pred: meta.clone(),
+            pred: meta_guard,
             body,
         })
         .collect();
