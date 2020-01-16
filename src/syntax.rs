@@ -1,6 +1,5 @@
 use im::vector;
 use im::Vector;
-use rand::seq::SliceRandom;
 use std::{cell::RefCell, rc::Rc};
 use string_interner::{StringInterner, Sym};
 
@@ -98,20 +97,31 @@ impl Grammar {
                     Token::Var(sym) => {
                         more_todo = true;
                         // Collect all rules that *could* expand `token`.
-                        let possiblilties = self
+                        let mut possibilities = self
                             .rules
                             .iter()
                             .filter(|rule| rule.head == sym)
-                            .filter(|rule| rule.pred.iter().all(|stmt| stmt.test(state)))
+                            // Theoretically, we're performing this filter down in the `while` loop below.
+                            // .filter(|rule| rule.pred.iter().all(|stmt| stmt.test(state)))
                             .collect::<Vec<_>>();
-                        // Randomly pick a rule.
-                        if let Some(rule) = possiblilties.choose(rng) {
-                            new_sentence.append(rule.body.clone());
-                        } else {
+
+                        if possibilities.is_empty() {
                             panic!(
                                 "oops, `{:?}` is not a known rule head!",
                                 syms.borrow().resolve(sym)
                             );
+                        }
+
+                        // Keep picking random rules until one is found which satisfies it's guard conditions.
+                        while !possibilities.is_empty() {
+                            let idx = rng.gen_range(0, possibilities.len());
+                            let rule = possibilities[idx];
+                            if rule.pred.iter().all(|stmt| stmt.test(state)) {
+                                new_sentence.append(rule.body.clone());
+                                break;
+                            } else {
+                                possibilities.swap_remove(idx);
+                            }
                         }
                     }
                 }
@@ -155,7 +165,7 @@ fn test_construction() {
             },
             Rule {
                 head: sym("nn"),
-                pred: vector![(sym("gender"), sym("f"))],
+                pred: vector![Stmt::Key(sym("gender"), sym("f"))],
                 body: vector![Token::Lit(sym("femme"))],
             },
         ],
