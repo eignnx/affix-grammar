@@ -14,6 +14,8 @@ pub enum Token<S: Clone = Sym> {
 pub enum Stmt<S = Sym> {
     Key(S, S),
     NotKey(S, S),
+    Set(S),
+    Unset(S),
     Lookup(S),
 }
 
@@ -24,7 +26,11 @@ impl Stmt {
         match self {
             Self::Key(key, value) => state.get(&key) == Some(&value),
             Self::NotKey(key, value) => state.get(&key) != Some(&value),
-            Self::Lookup(key) => state.contains_key(&key),
+            Self::Set(key) => state.contains_key(&key),
+            Self::Unset(key) => !state.contains_key(&key),
+            Self::Lookup(_) => {
+                unimplemented!("Lookup syntax is not supported in a guard expression!")
+            }
         }
     }
 
@@ -36,6 +42,16 @@ impl Stmt {
             }
             Self::NotKey(key, value) => {
                 if state.get(key) == Some(value) {
+                    state.remove(key);
+                }
+                None
+            }
+            Self::Set(key) => {
+                let _ = state.insert(key.clone(), key.clone());
+                None
+            }
+            Self::Unset(key) => {
+                if state.get(key) != None {
                     state.remove(key);
                 }
                 None

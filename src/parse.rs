@@ -84,11 +84,15 @@ fn stmt(input: &str, syms: Syms) -> IResult<&str, Stmt> {
         multispace0,
         |input| string_literal(input, syms.clone()),
     ));
+    let set = preceded(char(':'), |input| variable(input, syms.clone()));
+    let unset = preceded(char('!'), |input| variable(input, syms.clone()));
     let lookup = |input| variable(input, syms.clone());
 
     alt((
         map(key, |(key, _, _, value)| Stmt::Key(key, value)),
         map(not_key, |(key, _, _, value)| Stmt::NotKey(key, value)),
+        map(set, |key| Stmt::Set(key)),
+        map(unset, |key| Stmt::Unset(key)),
         map(lookup, Stmt::Lookup),
     ))(input)
 }
