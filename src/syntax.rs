@@ -1,7 +1,7 @@
+use crate::gen::{State, Syms};
 use im::vector;
 use im::Vector;
-use std::{cell::RefCell, rc::Rc};
-use string_interner::{StringInterner, Sym};
+use string_interner::Sym;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token<S: Clone = Sym> {
@@ -17,13 +17,6 @@ pub enum Stmt<S = Sym> {
     Set(S),
     Unset(S),
     Lookup(S),
-}
-
-pub type State = im::HashMap<Sym, Sym>;
-pub type Syms = Rc<RefCell<StringInterner<Sym>>>;
-
-pub fn make_symbol_pool() -> Syms {
-    Rc::new(RefCell::new(StringInterner::default()))
 }
 
 impl Stmt {
@@ -88,7 +81,7 @@ impl Grammar {
     ///             Collect each rule that the non-terminal matches against.
     ///             Select one of those rules at random.
     ///             Append it's body onto the new sentence.
-    pub fn generate(&self, syms: Syms, rng: &mut impl rand::Rng, state: &mut State) -> String {
+    pub fn generate(&self, syms: Syms, rng: &mut impl rand::Rng, state: &mut State) -> Vector<Sym> {
         let start = syms.borrow_mut().get_or_intern("start");
         let mut sentence = vector![Token::Var(start)];
         let mut more_todo = true;
@@ -145,31 +138,27 @@ impl Grammar {
             }
         }
 
-        let mut buf = String::new();
-        for token in sentence {
-            match token {
-                Token::Lit(s) => {
-                    let syms_ref = syms.borrow();
-                    let lit = syms_ref.resolve(s).expect("able to un-intern Sym");
-                    buf.push_str(lit);
-                }
+        // Ensure all are `Sym`s, convert from `Token`s.
+        sentence
+            .into_iter()
+            .map(|tok| match tok {
+                Token::Lit(sym) => sym,
                 Token::Var(s) => panic!(
                     "Still non-terminal {:?} left in final sentence!",
                     syms.borrow().resolve(s).expect("able to un-intern Sym")
                 ),
                 Token::Meta(_) => panic!("Still some meta-statement left in final sentence!"),
-            }
-        }
-        buf
+            })
+            .collect()
     }
 }
 
 #[test]
 fn test_construction() {
+    use crate::gen::make_symbol_pool;
     use rand::thread_rng;
-    use string_interner::StringInterner;
 
-    let syms = Rc::new(RefCell::new(StringInterner::default()));
+    let syms = make_symbol_pool();
     let sym = |s: &str| syms.borrow_mut().get_or_intern(s);
 
     let g = Grammar {

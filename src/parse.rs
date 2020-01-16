@@ -1,4 +1,5 @@
-use crate::syntax::{Grammar, Rule, Stmt, Syms, Token};
+use crate::gen::Syms;
+use crate::syntax::{Grammar, Rule, Stmt, Token};
 use im::{vector, Vector};
 use nom::{
     branch::alt,
@@ -41,7 +42,7 @@ fn string_literal<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Sym> {
 
 #[test]
 fn test_literal() {
-    let syms = crate::syntax::make_symbol_pool();
+    let syms = crate::gen::make_symbol_pool();
     let (_, actual) =
         string_literal(r#""inside of string""#, syms.clone()).expect("parse should succeed");
     let actual = syms.borrow().resolve(actual).unwrap().to_string();
@@ -57,7 +58,7 @@ fn variable<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Sym> {
 
 #[test]
 fn test_variable() {
-    let syms = crate::syntax::make_symbol_pool();
+    let syms = crate::gen::make_symbol_pool();
     let (_, actual) = variable(r#"some_symbol"#, syms.clone()).expect("parse should succeed");
     let actual = syms.borrow().resolve(actual).unwrap().to_string();
     let expected = "some_symbol".to_string();
@@ -147,7 +148,7 @@ fn sentence(input: &str, syms: Syms) -> IResult<&str, Sentence> {
 
 #[test]
 fn test_sentence() {
-    let syms = crate::syntax::make_symbol_pool();
+    let syms = crate::gen::make_symbol_pool();
     let resolve = |s| syms.borrow().resolve(s).unwrap().to_string();
     let (_, actual) = sentence(r#"x y "lit"   z"#, syms.clone()).expect("parse should succeed");
     let actual = actual
