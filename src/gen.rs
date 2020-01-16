@@ -23,7 +23,7 @@ pub struct Generator {
     rng: rand::rngs::ThreadRng,
     symbol_pool: Syms,
     seen_sentences: HashSet<im::Vector<Sym>>,
-    max_trials: usize,
+    pub(crate) max_trials: usize,
 }
 
 const DEFAULT_MAX_TRIALS: usize = 1000;
