@@ -4,7 +4,6 @@ mod syntax;
 use rand::thread_rng;
 use std::{
     cell::RefCell,
-    collections::HashMap,
     io::{self, Read},
     rc::Rc,
 };
@@ -25,7 +24,11 @@ fn main() -> io::Result<()> {
         _ => unimplemented!(),
     };
 
-    let sentence = grammar.generate(symbol_pool.clone(), &mut thread_rng(), &mut HashMap::new());
+    let sentence = grammar.generate(
+        symbol_pool.clone(),
+        &mut thread_rng(),
+        &mut im::HashMap::new(),
+    );
     println!("{:?}", sentence);
 
     Ok(())

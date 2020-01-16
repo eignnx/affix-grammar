@@ -1,19 +1,55 @@
 use im::vector;
 use im::Vector;
 use rand::seq::SliceRandom;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 use string_interner::{StringInterner, Sym};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token<T = Sym> {
-    Var(T),
-    Lit(T),
+pub enum Token<S: Clone = Sym> {
+    Var(S),
+    Lit(S),
+    Meta(Vector<Stmt<S>>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Stmt<S = Sym> {
+    Key(S, S),
+    NotKey(S, S),
+    Lookup(S),
+}
+
+type State = im::HashMap<Sym, Sym>;
+
+impl Stmt {
+    fn test(&self, state: &State) -> bool {
+        match self {
+            Self::Key(key, value) => state.get(&key) == Some(&value),
+            Self::NotKey(key, value) => state.get(&key) != Some(&value),
+            Self::Lookup(key) => state.contains_key(&key),
+        }
+    }
+
+    fn eval(&self, state: &mut State) -> Option<Sym> {
+        match self {
+            Self::Key(key, value) => {
+                let _ = state.insert(key.clone(), value.clone());
+                None
+            }
+            Self::NotKey(key, value) => {
+                if state.get(key) == Some(value) {
+                    state.remove(key);
+                }
+                None
+            }
+            Self::Lookup(key) => state.get(&key).map(|x| x.clone()),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct Rule {
     pub(crate) head: Sym,
-    pub(crate) pred: Vector<(Sym, Sym)>,
+    pub(crate) pred: Vector<Stmt>,
     pub(crate) body: Vector<Token>,
 }
 
@@ -36,7 +72,7 @@ impl Grammar {
         &self,
         syms: Rc<RefCell<StringInterner<Sym>>>,
         rng: &mut impl rand::Rng,
-        _state: &mut HashMap<Sym, Sym>,
+        state: &mut State,
     ) -> String {
         let start = syms.borrow_mut().get_or_intern("start");
         let mut sentence = vector![Token::Var(start)];
@@ -51,6 +87,14 @@ impl Grammar {
             for token in sentence.clone() {
                 match token {
                     Token::Lit(_) => new_sentence.push_back(token.clone()),
+                    Token::Meta(stmts) => {
+                        for stmt in &stmts {
+                            if let Some(sym) = stmt.eval(state) {
+                                // TODO: Should this push `Token`s rather than `Sym`s?
+                                new_sentence.push_back(Token::Lit(sym.clone()));
+                            }
+                        }
+                    }
                     Token::Var(sym) => {
                         more_todo = true;
                         // Collect all rules that *could* expand `token`.
@@ -58,6 +102,7 @@ impl Grammar {
                             .rules
                             .iter()
                             .filter(|rule| rule.head == sym)
+                            .filter(|rule| rule.pred.iter().all(|stmt| stmt.test(state)))
                             .collect::<Vec<_>>();
                         // Randomly pick a rule.
                         if let Some(rule) = possiblilties.choose(rng) {
@@ -86,6 +131,7 @@ impl Grammar {
                     "Still non-terminal {:?} left in final sentence!",
                     syms.borrow().resolve(s).expect("able to un-intern Sym")
                 ),
+                Token::Meta(_) => panic!("Still some meta-statement left in final sentence!"),
             }
         }
         buf
@@ -114,5 +160,5 @@ fn test_construction() {
             },
         ],
     };
-    dbg!(g.generate(syms, &mut thread_rng(), &mut HashMap::new()));
+    dbg!(g.generate(syms, &mut thread_rng(), &mut im::HashMap::new()));
 }

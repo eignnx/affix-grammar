@@ -1,4 +1,4 @@
-use crate::syntax::{Grammar, Rule, Token};
+use crate::syntax::{Grammar, Rule, Stmt, Token};
 use im::{vector, Vector};
 use nom::{
     branch::alt,
@@ -66,10 +66,56 @@ fn test_variable() {
     assert_eq!(actual, expected);
 }
 
+/// Accepts meta-statements like:
+///     x: "y"
+///     x! "y"
+///     x
+fn stmt(input: &str, syms: Syms) -> IResult<&str, Stmt> {
+    let key = tuple((
+        |input| variable(input, syms.clone()),
+        char(':'),
+        multispace0,
+        |input| literal(input, syms.clone()),
+    ));
+    let not_key = tuple((
+        |input| variable(input, syms.clone()),
+        char('!'),
+        multispace0,
+        |input| literal(input, syms.clone()),
+    ));
+    let lookup = |input| variable(input, syms.clone());
+
+    alt((
+        map(key, |(key, _, _, value)| Stmt::Key(key, value)),
+        map(not_key, |(key, _, _, value)| Stmt::NotKey(key, value)),
+        map(lookup, Stmt::Lookup),
+    ))(input)
+}
+
+fn meta(input: &str, syms: Syms) -> IResult<&str, Vector<Stmt>> {
+    let comma_space = tuple((char(','), multispace0));
+    map(
+        tuple((
+            char('{'),
+            multispace0,
+            separated_list(comma_space, |input| stmt(input, syms.clone())),
+            multispace0,
+            char('}'),
+        )),
+        |(_, _, stmts, _, _)| Vector::from(stmts),
+    )(input)
+}
+
 fn token<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Token> {
     let literal = |input| literal(input, syms.clone());
     let variable = |input| variable(input, syms.clone());
-    alt((map(literal, Token::Lit), map(variable, Token::Var)))(input)
+    let meta = |input| meta(input, syms.clone());
+    let (rest, tok) = alt((
+        map(literal, Token::Lit),
+        map(variable, Token::Var),
+        map(meta, Token::Meta),
+    ))(input)?;
+    Ok((rest, tok))
 }
 
 /// Accepts one or more space (' ') characters.
@@ -82,7 +128,7 @@ type Sentence = Vector<Token>;
 
 fn sentence(input: &str, syms: Syms) -> IResult<&str, Sentence> {
     let token = |input| token(input, syms.clone());
-    let (rest, vec) = separated_list(many1_space, token)(input)?;
+    let (rest, vec) = separated_nonempty_list(many1_space, token)(input)?;
     let vector = vec.into_iter().collect();
     Ok((rest, vector))
 }
@@ -97,6 +143,7 @@ fn test_sentence() {
         .map(|tok| match tok {
             Token::Var(s) => Token::Var(resolve(s)),
             Token::Lit(s) => Token::Lit(resolve(s)),
+            _ => unimplemented!(),
         })
         .collect::<Vec<_>>();
     let expected = vec![
@@ -110,30 +157,35 @@ fn test_sentence() {
 
 /// A rule is specified like this:
 /// ```ignore
-/// english_sentence -> subject " eats " object "."
-///                   | subject " hits " object " with a bat."
-///                   ;
+/// english_sentence {x: "foo"} -> subject " eats " object "."
+///                              | subject " hits " object " with a bat."
+///                              ;
 /// ```
 /// TODO: make this syntax nicer.
 fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
     let variable = |input| variable(input, syms.clone());
-    let arrow = tuple((multispace0, tag("->"), multispace0));
+    let meta = |input| meta(input, syms.clone());
+    let optional_meta_guard = alt((
+        delimited(multispace0, meta, multispace0),
+        map(multispace0, |_| vector![]),
+    ));
+    let arrow = tuple((tag("->"), multispace0));
     let pipe = delimited(multispace0, char('|'), multispace0);
     let sentence = |input| sentence(input, syms.clone());
-
-    let (rest, (head, _, bodies, _, _)) = tuple((
+    let semicolon = preceded(multispace0, char(';'));
+    let (rest, (head, meta, _, bodies, _)) = tuple((
         variable,
+        optional_meta_guard,
         arrow,
         separated_list(pipe, sentence),
-        multispace0,
-        char(';'),
+        semicolon,
     ))(input)?;
 
     let rules = bodies
         .into_iter()
         .map(|body| Rule {
             head: head.clone(),
-            pred: vector![],
+            pred: meta.clone(),
             body,
         })
         .collect();
