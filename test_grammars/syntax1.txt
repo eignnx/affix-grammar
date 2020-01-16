@@ -1,0 +1,10 @@
+start --> {x: "1"} foo
+      --> {x: "2"} foo
+      --> {x: "100"} foo
+      ;
+
+foo -{x: "1"}-> {x} " foo."
+    -{x: "2"}-> {x} " foos."
+    -{x: "3", qwerty: "poiuy", blah: "asdf"}-> "foo 2"
+    --> "lots of foos."
+    ;

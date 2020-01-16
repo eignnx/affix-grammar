@@ -1,2 +1,2 @@
-start -> "foo" other;
-other -> "bar";
+start --> "foo" other;
+other --> "bar";

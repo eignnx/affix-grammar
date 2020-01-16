@@ -1,11 +1,11 @@
-start -> { gender: "m" } noun_phrase
+start --> { gender: "m" } noun_phrase
        | { gender: "f" } noun_phrase
        ;
 
-noun_phrase -> name " est " adj ".";
+noun_phrase --> name " est " adj ".";
 
-name {gender: "m"} -> "Bob";
-name {gender: "f"} -> "Sally";
+name -{gender: "m"}-> "Bob";
+name -{gender: "f"}-> "Sally";
 
-adj { gender: "m" } -> "gentil";
-adj { gender: "f" } -> "gentille";
+adj -{ gender: "m" }-> "gentil";
+adj -{ gender: "f" }-> "gentille";

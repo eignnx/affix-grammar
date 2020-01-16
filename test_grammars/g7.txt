@@ -1,2 +1,2 @@
-start -> "foo" other;
-other -> "bar" | "baz" start;
+start --> "foo" other;
+other --> "bar" | "baz" start;

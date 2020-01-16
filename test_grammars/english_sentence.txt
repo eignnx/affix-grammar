@@ -1,9 +1,9 @@
 
-start -> english_sentence;
+start --> english_sentence;
 
-english_sentence -> subject " eats " object "."
-                  | subject " hits " object " with a bat."
-                  ;
+english_sentence --> subject " eats " object "."
+                 --> subject " hits " object " with a bat."
+                 ;
 
-subject -> "a dog" | "a cow";
-object -> "the chair" | "the couch";
+subject --> "a dog" | "a cow";
+object --> "the chair" | "the couch";

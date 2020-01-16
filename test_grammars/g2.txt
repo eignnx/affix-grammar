@@ -1,1 +1,1 @@
-start -> "foo" "bar";
+start --> "foo" "bar";

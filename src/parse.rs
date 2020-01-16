@@ -8,7 +8,7 @@ use nom::{
     eof,
     multi::{many1, separated_list, separated_nonempty_list},
     re_find,
-    sequence::{delimited, preceded, separated_pair, terminated, tuple},
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -157,28 +157,27 @@ fn test_sentence() {
 
 /// A rule is specified like this:
 /// ```ignore
-/// english_sentence {x: "foo"} -> subject " eats " object "."
-///                              | subject " hits " object " with a bat."
-///                              ;
+/// english_sentence -{x: "foo"}-> subject " eats " object "."
+///                  --> subject " hits " object " with a bat."
+///                  ;
 /// ```
 /// TODO: make this syntax nicer.
 fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
     let variable = |input| variable(input, syms.clone());
     let meta = |input| meta(input, syms.clone());
-    let pipe = delimited(multispace0, char('|'), multispace0);
-    let arrow = terminated(tag("->"), multispace0);
-    let optional_meta_guard = opt(delimited(multispace0, meta, multispace0));
-    let optional_meta_guard = map(optional_meta_guard, |x| x.unwrap_or(vector![]));
     let sentence = |input| sentence(input, syms.clone());
-    let abbrev_rule = separated_pair(optional_meta_guard, arrow, sentence);
+
+    let pipe = map(char('|'), |_| vector![]);
+    let optional_meta_guard = map(opt(meta), |x| x.unwrap_or(vector![]));
+    let full_arrow = delimited(char('-'), optional_meta_guard, tag("->"));
+    let arrow_or_pipe = delimited(multispace0, alt((pipe, full_arrow)), multispace1);
     let semicolon = preceded(multispace0, char(';'));
 
     let (rest, (head, abbrev_rules)) = terminated(
-        separated_pair(
+        tuple((
             terminated(variable, multispace0),
-            opt(&pipe),
-            separated_nonempty_list(&pipe, abbrev_rule),
-        ),
+            many1(tuple((arrow_or_pipe, sentence))),
+        )),
         semicolon,
     )(input)?;
 
