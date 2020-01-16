@@ -16,7 +16,7 @@ use string_interner::{StringInterner, Sym};
 
 type Syms = Rc<RefCell<StringInterner<Sym>>>;
 
-fn literal<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Sym> {
+fn string_literal<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Sym> {
     // See: https://python-reference.readthedocs.io/en/latest/docs/str/escapes.html
     //
     // \a           ASCII bell
@@ -45,7 +45,8 @@ fn literal<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Sym> {
 #[test]
 fn test_literal() {
     let syms = Rc::new(RefCell::new(StringInterner::default()));
-    let (_, actual) = literal(r#""inside of string""#, syms.clone()).expect("parse should succeed");
+    let (_, actual) =
+        string_literal(r#""inside of string""#, syms.clone()).expect("parse should succeed");
     let actual = syms.borrow().resolve(actual).unwrap().to_string();
     let expected = "inside of string".to_string();
     assert_eq!(actual, expected);
@@ -75,13 +76,13 @@ fn stmt(input: &str, syms: Syms) -> IResult<&str, Stmt> {
         |input| variable(input, syms.clone()),
         char(':'),
         multispace0,
-        |input| literal(input, syms.clone()),
+        |input| string_literal(input, syms.clone()),
     ));
     let not_key = tuple((
         |input| variable(input, syms.clone()),
         char('!'),
         multispace0,
-        |input| literal(input, syms.clone()),
+        |input| string_literal(input, syms.clone()),
     ));
     let lookup = |input| variable(input, syms.clone());
 
@@ -106,8 +107,18 @@ fn meta(input: &str, syms: Syms) -> IResult<&str, Vector<Stmt>> {
     )(input)
 }
 
+/// Allows the user to write `-` which expands out to `" "`. Slightly more ergonomic.
+fn space_literal(input: &str, syms: Syms) -> IResult<&str, Sym> {
+    let (rest, _) = char('-')(input)?;
+    let space = syms.borrow_mut().get_or_intern(" ");
+    Ok((rest, space))
+}
+
 fn token<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Token> {
-    let literal = |input| literal(input, syms.clone());
+    let literal = alt((
+        |input| space_literal(input, syms.clone()),
+        |input| string_literal(input, syms.clone()),
+    ));
     let variable = |input| variable(input, syms.clone());
     let meta = |input| meta(input, syms.clone());
     let (rest, tok) = alt((

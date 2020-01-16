@@ -29,7 +29,7 @@ fn main() -> io::Result<()> {
         &mut thread_rng(),
         &mut im::HashMap::new(),
     );
-    println!("{:?}", sentence);
+    println!("\"{}\"", sentence);
 
     Ok(())
 }
