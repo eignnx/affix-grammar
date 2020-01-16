@@ -1,0 +1,15 @@
+start --> "Je vais" - to_place ".";
+
+to_place --> "en" - place
+           | {:plur} "aux" - place
+           | {:definite, gender: "m"} "au" - place
+           | {:definite, gender: "f"} "a la" - place
+           | {!definite} "en" - place
+           ;
+
+place -{:plur}-> "États-Unis" | "toilettes"
+      -{!plur, :definite, gender: "m"}-> "Mexique" | "Japon" | "Canada"
+      -{!plur, !definite}-> "France" | "Angleterre"
+      -{!plur, gender: "m"}-> "magasin" | "supermarché" | "restaurant"
+      -{!plur, gender: "f"}-> "gare" | "banque"
+      ;

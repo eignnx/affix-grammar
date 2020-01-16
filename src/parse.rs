@@ -176,13 +176,21 @@ fn test_sentence() {
 /// ```
 /// TODO: make this syntax nicer.
 fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
+    enum Guards {
+        Specified(Vector<Stmt>),
+        Inherited,
+    }
+
     let variable = |input| variable(input, syms.clone());
     let meta = |input| meta(input, syms.clone());
     let sentence = |input| sentence(input, syms.clone());
 
-    let pipe = map(char('|'), |_| vector![]);
+    let pipe = map(char('|'), |_| Guards::Inherited);
     let optional_meta_guard = map(opt(meta), |x| x.unwrap_or(vector![]));
-    let full_arrow = delimited(char('-'), optional_meta_guard, tag("->"));
+    let full_arrow = map(
+        delimited(char('-'), optional_meta_guard, tag("->")),
+        |stmts| Guards::Specified(stmts),
+    );
     let arrow_or_pipe = delimited(multispace0, alt((pipe, full_arrow)), multispace1);
     let semicolon = preceded(multispace0, char(';'));
 
@@ -194,12 +202,24 @@ fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
         semicolon,
     )(input)?;
 
+    let mut most_recent_guard = vector![];
+
     let rules = abbrev_rules
         .into_iter()
-        .map(|(meta_guard, body)| Rule {
-            head: head.clone(),
-            pred: meta_guard,
-            body,
+        .map(|(meta_guard, body)| match meta_guard {
+            Guards::Specified(guard) => {
+                most_recent_guard = guard.clone();
+                Rule {
+                    head: head.clone(),
+                    pred: guard,
+                    body,
+                }
+            }
+            Guards::Inherited => Rule {
+                head: head.clone(),
+                pred: most_recent_guard.clone(),
+                body,
+            },
         })
         .collect();
     Ok((rest, rules))
