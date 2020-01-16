@@ -19,7 +19,12 @@ pub enum Stmt<S = Sym> {
     Lookup(S),
 }
 
-type State = im::HashMap<Sym, Sym>;
+pub type State = im::HashMap<Sym, Sym>;
+pub type Syms = Rc<RefCell<StringInterner<Sym>>>;
+
+pub fn make_symbol_pool() -> Syms {
+    Rc::new(RefCell::new(StringInterner::default()))
+}
 
 impl Stmt {
     fn test(&self, state: &State) -> bool {
@@ -83,12 +88,7 @@ impl Grammar {
     ///             Collect each rule that the non-terminal matches against.
     ///             Select one of those rules at random.
     ///             Append it's body onto the new sentence.
-    pub fn generate(
-        &self,
-        syms: Rc<RefCell<StringInterner<Sym>>>,
-        rng: &mut impl rand::Rng,
-        state: &mut State,
-    ) -> String {
+    pub fn generate(&self, syms: Syms, rng: &mut impl rand::Rng, state: &mut State) -> String {
         let start = syms.borrow_mut().get_or_intern("start");
         let mut sentence = vector![Token::Var(start)];
         let mut more_todo = true;
