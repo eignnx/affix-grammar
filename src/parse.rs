@@ -9,7 +9,7 @@ use nom::{
     eof,
     multi::{many1, separated_list, separated_nonempty_list},
     re_find,
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
 use string_interner::Sym;
@@ -70,25 +70,23 @@ fn test_variable() {
 ///     x! "y"
 ///     x
 fn stmt(input: &str, syms: Syms) -> IResult<&str, Stmt> {
-    let key = tuple((
+    let key = separated_pair(
         |input| variable(input, syms.clone()),
-        char(':'),
-        multispace0,
-        |input| string_literal(input, syms.clone()),
-    ));
-    let not_key = tuple((
+        tuple((char(':'), multispace0)),
+        |input| token(input, syms.clone()),
+    );
+    let not_key = separated_pair(
         |input| variable(input, syms.clone()),
-        char('!'),
-        multispace0,
+        tuple((char('!'), multispace0)),
         |input| string_literal(input, syms.clone()),
-    ));
+    );
     let set = preceded(char(':'), |input| variable(input, syms.clone()));
     let unset = preceded(char('!'), |input| variable(input, syms.clone()));
     let lookup = |input| variable(input, syms.clone());
 
     alt((
-        map(key, |(key, _, _, value)| Stmt::Key(key, value)),
-        map(not_key, |(key, _, _, value)| Stmt::NotKey(key, value)),
+        map(key, |(key, value)| Stmt::Key(key, value)),
+        map(not_key, |(key, value)| Stmt::NotKey(key, value)),
         map(set, |key| Stmt::Set(key)),
         map(unset, |key| Stmt::Unset(key)),
         map(lookup, Stmt::Lookup),
@@ -193,7 +191,10 @@ fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
 
     // rule_group ::= "variable guarded_rule_group guarded_rule_group ... guarded_rule_group ;"
     let rule_group = terminated(
-        tuple((terminated(variable, multispace0), many1(guarded_rule_group))),
+        tuple((
+            terminated(variable, multispace0),
+            separated_nonempty_list(multispace1, guarded_rule_group),
+        )),
         semicolon,
     );
 
