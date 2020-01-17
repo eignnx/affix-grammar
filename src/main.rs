@@ -22,10 +22,12 @@ fn main() -> io::Result<()> {
     let cli_options = cli::Options::from_args();
     let mut generator = Generator::try_from(cli_options.grammar_file.as_ref())?;
 
+    println!();
     for _ in 0..cli_options.number {
         let sentence = match generator.generate() {
             Some(sentence) => sentence,
             None => {
+                println!();
                 println!(
                     "[Max iterations ({}) exceeded and no new sentences found! \
                      This may mean all possible sentences have been generated.]",
@@ -34,8 +36,9 @@ fn main() -> io::Result<()> {
                 break;
             }
         };
-        println!("\n\t\"{}\"\n", sentence);
+        println!("\t\"{}\"", sentence);
     }
+    println!();
 
     let mut line_buf = String::new();
     let mut resp = ask(
