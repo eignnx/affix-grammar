@@ -1,0 +1,122 @@
+start --> {x: "1"} foo
+      --> {x: "2"} foo
+      --> {x: "100"} foo
+      ;
+
+foo -{x: "1"}-> {x} " foo."
+    -{x: "2"}-> {x} " foos."
+    -{x: "3", qwerty: "poiuy", blah: "asdf"}-> "foo 2"
+    --> "lots of foos."
+    ;
+
+---------------
+
+person_kind --> (
+    -{gender: "f"}-> (
+        -{:plural}-> "women" | "girls"
+        -!-> "woman" | "girl"
+    )
+    -{gender: "m"}-> (
+        -{:plural}-> "men" | "boys"
+        -{!plural}-> "man" | "boy"
+    )
+)
+
+------------------
+
+person_kind : "women" | "girls" ? {gender: "f", :plural}
+            : "woman" | "girl" ? {gender: "f", !plural}
+            : "men" | "boys" ? {gender: "m", !plural}
+            : "man" | "boy" ? {gender: "m", !plural}
+            : "Abcde" - {:thing} more
+            | other - thing - "Bcdef"
+            | "Cdefg"
+            | "Defgh"
+            ? {condition: "value", !other_condition}
+            ;
+        
+
+
+
+place -{:plur}-> "États Unis" | "toilettes"
+      -{!plur, :definite, gender: "m"}-> "Mexique" | "Japon" | "Canada"
+      -{!definite}-> "France" | "Angleterre"
+      -{!plur, gender: "m"}-> "magasin" | "supermarché" | "restaurant"
+      -{!plur, gender: "f"}-> "gare" | "banque"
+      ;
+
+place : "États Unis" | "toilettes" ? {:plur}
+      : "Mexique" | "Japon" | "Canada" ? {!plur, :definite, gender: "m"}
+      : "France" | "Angleterre" ? {!definite}
+      : "magasin" | "supermarché" | "restaurant" ? {!plur, gender: "m"}
+      : "gare" | "banque" ? {!plur, gender: "f"}
+      ;
+
+place ? {:plur} : "États Unis" | "toilettes"
+      ? {!plur, :definite, gender: "m"} : "Mexique" | "Japon" | "Canada"
+      ? {!definite} : "France" | "Angleterre"
+      ? {!plur, gender: "m"} : "magasin" | "supermarché" | "restaurant"
+      ? {!plur, gender: "f"} : "gare" | "banque"
+      ;
+
+
+basic : "foo" | "bar";
+
+nn
+    -{:plur}-> "toilettes" | "pays"
+    -{!plur}-> nn "s" {:plur}
+    -{!plur, :vowel_start}-> "homme" | "école" | "hôpital" | "avion" | "aéroport"
+    -{!plur, gender: "m"}->
+        | "garçon"
+        | "père"
+        | "mari"
+        | "frère"
+        | "bébé"
+        | "chat"
+        | "chien"
+        | "pain"
+        | "train"
+    -{!plur, gender: "f"}->
+        | "mère"
+        | "femme"
+        | "fille"
+        | "sœur"
+        | "taxi"
+        | "chouette"
+        | "vache"
+        | "voiture"
+        | "voisin"
+        | "fils"
+        | "fromage"
+        | "vin"
+        | "banque"
+    ;
+
+nn : "toilettes" | "pays" ? {:plur}
+   : nn "s" {:plur} ? {!plur}
+   : "homme" | "école" | "hôpital" | "avion" | "aéroport" ? {!plur, :vowel_start}
+   : "garçon"
+   | "père"
+   | "mari"
+   | "frère"
+   | "bébé"
+   | "chat"
+   | "chien"
+   | "pain"
+   | "train"
+   ? {!plur, gender: "m"}
+   : "mère"
+   | "femme"
+   | "fille"
+   | "sœur"
+   | "taxi"
+   | "chouette"
+   | "vache"
+   | "voiture"
+   | "voisin"
+   | "fils"
+   | "fromage"
+   | "vin"
+   | "banque"
+   ? {!plur, gender: "f"}
+   ;

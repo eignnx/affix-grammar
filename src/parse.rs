@@ -176,52 +176,40 @@ fn test_sentence() {
 /// ```
 /// TODO: make this syntax nicer.
 fn rule(input: &str, syms: Syms) -> IResult<&str, Vec<Rule>> {
-    enum Guards {
-        Specified(Vector<Stmt>),
-        Inherited,
-    }
-
     let variable = |input| variable(input, syms.clone());
     let meta = |input| meta(input, syms.clone());
     let sentence = |input| sentence(input, syms.clone());
 
-    let pipe = map(char('|'), |_| Guards::Inherited);
+    let pipe = delimited(multispace0, char('|'), multispace0);
     let optional_meta_guard = map(opt(meta), |x| x.unwrap_or(vector![]));
-    let full_arrow = map(
-        delimited(char('-'), optional_meta_guard, tag("->")),
-        |stmts| Guards::Specified(stmts),
-    );
-    let arrow_or_pipe = delimited(multispace0, alt((pipe, full_arrow)), multispace1);
+    let full_arrow = delimited(char('-'), optional_meta_guard, tag("->"));
     let semicolon = preceded(multispace0, char(';'));
 
-    let (rest, (head, abbrev_rules)) = terminated(
-        tuple((
-            terminated(variable, multispace0),
-            many1(tuple((arrow_or_pipe, sentence))),
-        )),
+    // guarded_rule_group ::= "-{optional_meta_guard}-> sentence | sentence | ... | sentence"
+    let guarded_rule_group = tuple((
+        terminated(full_arrow, multispace0),
+        preceded(opt(&pipe), separated_nonempty_list(&pipe, sentence)),
+    ));
+
+    // rule_group ::= "variable guarded_rule_group guarded_rule_group ... guarded_rule_group ;"
+    let rule_group = terminated(
+        tuple((terminated(variable, multispace0), many1(guarded_rule_group))),
         semicolon,
-    )(input)?;
+    );
 
-    let mut most_recent_guard = vector![];
+    let (rest, (head, parsed_rules)) = rule_group(input)?;
 
-    let rules = abbrev_rules
+    let rules = parsed_rules
         .into_iter()
-        .map(|(meta_guard, body)| match meta_guard {
-            Guards::Specified(guard) => {
-                most_recent_guard = guard.clone();
-                Rule {
-                    head: head.clone(),
-                    pred: guard,
-                    body,
-                }
-            }
-            Guards::Inherited => Rule {
+        .flat_map(|(guard_stmts, sentences)| {
+            sentences.into_iter().map(move |sentence| Rule {
                 head: head.clone(),
-                pred: most_recent_guard.clone(),
-                body,
-            },
+                pred: guard_stmts.clone(),
+                body: sentence,
+            })
         })
         .collect();
+
     Ok((rest, rules))
 }
 
