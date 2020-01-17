@@ -174,8 +174,8 @@ impl Generator {
                             }
                             None => {
                                 panic!(
-                                    "oops, `{:?}` is not a known rule head!",
-                                    self.symbol_pool.borrow().resolve(sym)
+                                    "oops, `{}` does not match any known rule!",
+                                    self.symbol_pool.borrow().resolve(sym).unwrap()
                                 );
                             }
                         }
