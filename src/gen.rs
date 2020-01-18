@@ -67,7 +67,7 @@ impl Generator {
                     None
                 }
                 Token::Var(sym) => {
-                    let sentence = self.generate_non_unique(*sym, state.clone());
+                    let sentence = self.generate_non_unique(*sym, state);
                     let sentence_text = self.join_symbols(sentence.iter());
                     let sentence_sym = self.intern(&sentence_text);
                     let _ = state.insert(*key, sentence_sym);
@@ -98,7 +98,7 @@ impl Generator {
                 None
             }
             Stmt::Lookup(key) => state.get(&key).map(|x| x.clone()).or_else(|| {
-                let sentence = self.generate_non_unique(*key, state.clone());
+                let sentence = self.generate_non_unique(*key, state);
                 let sentence_text = self.join_symbols(sentence.iter());
                 let sentence_sym = self.intern(&sentence_text);
                 Some(sentence_sym)
@@ -145,7 +145,7 @@ impl Generator {
     ///             Collect each rule that the non-terminal matches against.
     ///             Select one of those rules at random.
     ///             Append it's body onto the new sentence.
-    pub fn generate_non_unique(&self, start: Sym, mut state: State) -> Vector<Sym> {
+    pub fn generate_non_unique(&self, start: Sym, state: &mut State) -> Vector<Sym> {
         let mut sentence = vector![Token::Var(start)];
         let mut more_todo = true;
 
@@ -160,7 +160,7 @@ impl Generator {
                     Token::Lit(_) => new_sentence.push_back(token.clone()),
                     Token::Meta(stmts) => {
                         for stmt in &stmts {
-                            if let Some(sym) = self.eval(stmt, &mut state) {
+                            if let Some(sym) = self.eval(stmt, state) {
                                 // TODO: Should this push `Token`s rather than `Sym`s?
                                 new_sentence.push_back(Token::Lit(sym.clone()));
                             }
@@ -168,7 +168,7 @@ impl Generator {
                     }
                     Token::Var(sym) => {
                         more_todo = true; // We'll have to revisit.
-                        match self.choose_rule(sym, &state) {
+                        match self.choose_rule(sym, state) {
                             Some(rule) => {
                                 new_sentence.append(rule.body.clone());
                             }
@@ -217,7 +217,8 @@ impl Generator {
         let start = self.symbol_pool.borrow_mut().get_or_intern("start");
         let mut trials = 0;
         loop {
-            let sentence = self.generate_non_unique(start, im::HashMap::new());
+            let mut state = im::HashMap::new();
+            let sentence = self.generate_non_unique(start, &mut state);
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());

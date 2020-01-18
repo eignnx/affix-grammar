@@ -1,0 +1,30 @@
+start --> {character: name} {pet: animal} story;
+
+name --> "Kirsten" {gender: "f"}
+       | "Chloe" {gender: "x"}
+       | "Levi" {gender: "m"}
+       | "Sam"
+       ;
+
+they -{gender: "f"}-> "she"
+     -{gender: "m"}-> "he"
+     -{gender: "x"}-> "they"
+     -{!gender}-> "they(!)"
+     ;
+
+their -{gender: "f"}-> "her"
+      -{gender: "m"}-> "his"
+      -{gender: "x"}-> "their"
+      -{!gender}-> "their(!)"
+      ;
+
+them -{gender: "f"}-> "her"
+     -{gender: "m"}-> "him"
+     -{gender: "x"}-> "them"
+     -{!gender}-> "them(!)"
+     ;
+
+story --> {character} - "was walking down the street when" - they - "saw" - their - {pet} "." - "The" - {pet} - "walked with" - them ".";
+
+animal --> "cat" | "dog";
+
