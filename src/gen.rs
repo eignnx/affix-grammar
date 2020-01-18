@@ -24,8 +24,14 @@ pub struct Generator {
     grammar: Grammar,
     rng: RefCell<rand::rngs::ThreadRng>,
     symbol_pool: Syms,
-    seen_sentences: HashSet<im::Vector<Sym>>,
+    seen_sentences: HashSet<im::Vector<OutputSym>>,
     pub(crate) max_trials: usize,
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+enum OutputSym {
+    Sym(Sym),
+    Plus, // For concatenation without space insertion.
 }
 
 const DEFAULT_MAX_TRIALS: usize = 1000;
@@ -45,6 +51,7 @@ impl Generator {
         match stmt {
             Stmt::Key(key, value) => match value {
                 Token::Lit(sym) => state.get(&key) == Some(&sym),
+                Token::Plus => false, // TODO: is there a cooler way to handle this?
                 Token::Var(_) => unimplemented!(
                     "this should probably entail PARSING according to the specified rule"
                 ),
@@ -66,6 +73,7 @@ impl Generator {
                     let _ = state.insert(*key, *sym);
                     None
                 }
+                Token::Plus => None, // TODO: Could we output the Plus to eat a space outside?
                 Token::Var(sym) => {
                     let sentence = self.generate_non_unique(*sym, state);
                     let sentence_text = self.join_symbols(sentence.iter());
@@ -145,16 +153,15 @@ impl Generator {
     ///             Collect each rule that the non-terminal matches against.
     ///             Select one of those rules at random.
     ///             Append it's body onto the new sentence.
-    pub fn generate_non_unique(&self, start: Sym, state: &mut State) -> Vector<Sym> {
+    fn generate_non_unique(&self, start: Sym, state: &mut State) -> Vector<OutputSym> {
         let mut sentence = vector![Token::Var(start)];
         let mut more_todo = true;
 
         while more_todo {
             more_todo = false;
-
-            // For each token, if it's a variable, it needs to be replaced.
             let mut new_sentence = Vector::new();
 
+            // For each token, if it's a variable, it needs to be replaced.
             for token in sentence.clone() {
                 match token {
                     Token::Lit(_) => new_sentence.push_back(token.clone()),
@@ -166,6 +173,7 @@ impl Generator {
                             }
                         }
                     }
+                    Token::Plus => new_sentence.push_back(Token::Plus),
                     Token::Var(sym) => {
                         more_todo = true; // We'll have to revisit.
                         match self.choose_rule(sym, state) {
@@ -189,7 +197,7 @@ impl Generator {
         sentence
             .into_iter()
             .map(|tok| match tok {
-                Token::Lit(sym) => sym,
+                Token::Lit(sym) => OutputSym::Sym(sym),
                 Token::Var(s) => panic!(
                     "Still non-terminal {:?} left in final sentence!",
                     self.symbol_pool
@@ -198,17 +206,33 @@ impl Generator {
                         .expect("able to un-intern Sym")
                 ),
                 Token::Meta(_) => panic!("Still some meta-statement left in final sentence!"),
+                Token::Plus => OutputSym::Plus,
             })
             .collect()
     }
 
-    fn join_symbols<'it>(&self, syms: impl Iterator<Item = &'it Sym> + 'it) -> String {
+    /// Takes in a iterator of either `Sym`s or `Plus`es. Before every `Sym`,
+    /// insert a space character. If there is a `Plus` before a `Sym`, don't
+    /// insert the space. If it's at the beginning of the iterator, don't insert
+    /// a space.
+    fn join_symbols<'it>(&self, syms: impl Iterator<Item = &'it OutputSym> + 'it) -> String {
         let (lower_bound, _upper) = syms.size_hint();
         let mut text = String::with_capacity(lower_bound);
+        let mut add_joining_space = false;
+
         for sym in syms {
-            let pool_ref = self.symbol_pool.borrow();
-            let s = pool_ref.resolve(*sym).unwrap();
-            text.push_str(s);
+            match sym {
+                OutputSym::Sym(sym) => {
+                    let pool_ref = self.symbol_pool.borrow();
+                    let s = pool_ref.resolve(*sym).unwrap();
+                    if add_joining_space {
+                        text.push(' ');
+                    }
+                    text.push_str(s);
+                    add_joining_space = true;
+                }
+                OutputSym::Plus => add_joining_space = false,
+            }
         }
         text
     }

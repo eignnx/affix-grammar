@@ -5,6 +5,7 @@ use string_interner::Sym;
 pub enum Token<S: Clone = Sym> {
     Var(S),
     Lit(S),
+    Plus,
     Meta(Vector<Stmt<S>>),
 }
 

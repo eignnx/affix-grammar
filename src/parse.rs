@@ -107,21 +107,17 @@ fn meta(input: &str, syms: Syms) -> IResult<&str, Vector<Stmt>> {
     )(input)
 }
 
-/// Allows the user to write `-` which expands out to `" "`. Slightly more ergonomic.
-fn space_literal(input: &str, syms: Syms) -> IResult<&str, Sym> {
-    let (rest, _) = char('-')(input)?;
-    let space = syms.borrow_mut().get_or_intern(" ");
-    Ok((rest, space))
+/// Allows the user to write `+` which eats any implicit spaces beside it.
+fn plus_literal(input: &str) -> IResult<&str, Token> {
+    map(char('+'), |_| Token::Plus)(input)
 }
 
 fn token<'i>(input: &'i str, syms: Syms) -> IResult<&'i str, Token> {
-    let literal = alt((
-        |input| space_literal(input, syms.clone()),
-        |input| string_literal(input, syms.clone()),
-    ));
+    let literal = |input| string_literal(input, syms.clone());
     let variable = |input| variable(input, syms.clone());
     let meta = |input| meta(input, syms.clone());
     let (rest, tok) = alt((
+        plus_literal,
         map(literal, Token::Lit),
         map(variable, Token::Var),
         map(meta, Token::Meta),
