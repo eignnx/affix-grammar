@@ -24,7 +24,7 @@ them -{gender: "f"}-> "her"
      -{!gender}-> "them(!)"
      ;
 
-story --> {character} "was walking down the street when" they "saw" their {pet} + "." "The" {pet} "walked with" them + ".";
+story --> character "was walking down the street when" they "saw" their pet + "." "The" pet "walked with" them + ".";
 
 animal --> "cat" | "dog";
 

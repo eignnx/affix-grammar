@@ -14,7 +14,6 @@ pub enum EvalStmt<S: Clone = Sym> {
     Key(S, Token<S>),
     Set(S),
     Unset(S),
-    Lookup(S),
 }
 
 #[derive(Debug, Clone)]

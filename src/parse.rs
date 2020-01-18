@@ -83,13 +83,11 @@ fn eval_stmt(syms: Syms) -> impl Fn(&str) -> IResult<&str, EvalStmt> {
         );
         let set = preceded(char(':'), variable(syms.clone()));
         let unset = preceded(char('!'), variable(syms.clone()));
-        let lookup = variable(syms.clone());
 
         alt((
             map(key, |(key, value)| EvalStmt::Key(key, value)),
             map(set, |key| EvalStmt::Set(key)),
             map(unset, |key| EvalStmt::Unset(key)),
-            map(lookup, EvalStmt::Lookup),
         ))(input)
     }
 }

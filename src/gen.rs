@@ -43,9 +43,21 @@ impl From<OutputSym> for Token {
     }
 }
 
+impl From<&OutputSym> for Token {
+    fn from(output_sym: &OutputSym) -> Self {
+        output_sym.clone().into()
+    }
+}
+
 impl From<Sym> for OutputSym {
     fn from(sym: Sym) -> Self {
         Self::Sym(sym)
+    }
+}
+
+impl From<&Sym> for OutputSym {
+    fn from(sym: &Sym) -> Self {
+        Self::Sym(*sym)
     }
 }
 
@@ -90,41 +102,33 @@ impl Generator {
         }
     }
 
-    fn eval(&self, stmt: &EvalStmt, state: &mut State) -> Option<Vector<OutputSym>> {
+    fn eval(&self, stmt: &EvalStmt, state: &mut State) {
         match stmt {
             EvalStmt::Key(key, value) => match value {
                 Token::Lit(sym) => {
-                    let _ = state.insert(*key, vector![OutputSym::Sym(*sym)]);
-                    None
+                    let _ = state.insert(*key, vector![sym.into()]);
                 }
-                Token::Plus => None, // TODO: Could we output the Plus to eat a space outside?
+                Token::Plus => {
+                    let _ = state.insert(*key, vector![OutputSym::Plus]);
+                }
                 Token::Var(sym) => {
                     let sentence = self.generate_non_unique(*sym, state);
                     let _ = state.insert(*key, sentence);
-                    None
                 }
                 Token::Meta(stmts) => {
-                    let mut last = None;
                     for stmt in stmts {
-                        last = self.eval(stmt, state);
+                        self.eval(stmt, state);
                     }
-                    last
                 }
             },
             EvalStmt::Set(key) => {
                 let _ = state.insert(*key, vector![OutputSym::Sym(*key)]);
-                None
             }
             EvalStmt::Unset(key) => {
                 if state.get(key) != None {
                     state.remove(key);
                 }
-                None
             }
-            EvalStmt::Lookup(key) => state.get(&key).map(|x| x.clone()).or_else(|| {
-                let sentence = self.generate_non_unique(*key, state);
-                Some(sentence)
-            }),
         }
     }
 
@@ -169,38 +173,43 @@ impl Generator {
     ///             Append it's body onto the new sentence.
     fn generate_non_unique(&self, start: Sym, state: &mut State) -> Vector<OutputSym> {
         let mut sentence = vector![Token::Var(start)];
-        let mut more_todo = true;
+        let mut more_to_do = true;
 
-        while more_todo {
-            more_todo = false;
+        while more_to_do {
+            more_to_do = false;
             let mut new_sentence = Vector::new();
 
             // For each token, if it's a variable, it needs to be replaced.
             for token in sentence.clone() {
                 match token {
                     Token::Lit(_) => new_sentence.push_back(token.clone()),
-                    Token::Meta(stmts) => {
-                        for stmt in &stmts {
-                            if let Some(sentence) = self.eval(stmt, state) {
-                                for output_sym in sentence {
-                                    new_sentence.push_back(output_sym.into());
-                                }
-                            }
-                        }
-                    }
                     Token::Plus => new_sentence.push_back(Token::Plus),
                     Token::Var(sym) => {
-                        more_todo = true; // We'll have to revisit.
-                        match self.choose_rule(sym, state) {
-                            Some(rule) => {
-                                new_sentence.append(rule.body.clone());
-                            }
-                            None => {
+                        more_to_do = true; // We'll have to revisit.
+
+                        // First, check to see if the name is in the state map.
+                        // If `sym` is bound in the state map, convert it's
+                        // `Vector` of `OutputSym`s into `Token`s and append
+                        // them onto `new_sentence.
+                        // If it's not in there, search the grammar's rules
+                        // via `self.choose_rule`.
+                        // Finally, if it's in neither, panic.
+                        let tokens_to_add: Vector<Token> = state
+                            .get(&sym)
+                            .map(|out_toks| out_toks.iter().map(|x| x.into()).collect())
+                            .or_else(|| self.choose_rule(sym, state).map(|rule| rule.body.clone()))
+                            .unwrap_or_else(|| {
                                 panic!(
                                     "oops, `{}` does not match any known rule!",
                                     self.symbol_pool.borrow().resolve(sym).unwrap()
                                 );
-                            }
+                            });
+
+                        new_sentence.append(tokens_to_add);
+                    }
+                    Token::Meta(stmts) => {
+                        for stmt in &stmts {
+                            self.eval(stmt, state);
                         }
                     }
                 }

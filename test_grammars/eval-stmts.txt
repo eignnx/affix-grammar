@@ -1,0 +1,2 @@
+start --> foo {foo: "(inside a stmt)"} foo {bar: foo} bar;
+foo --> "(inside a rule)";
