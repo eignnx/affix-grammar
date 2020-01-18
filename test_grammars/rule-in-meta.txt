@@ -9,11 +9,11 @@ pronoun -{gender: "f"}-> "she"
 
 place --> "Walmart" | "the park" | "your mama's house" | "the store";
 
-story --> {main_character: name} {main_character} - "was going to" - place ". Suddenly," - {pronoun} - "saw" - thing "! And" - pronoun - "said: '" story "'. What a story," - {main_character} "."
+story --> {main_character: name} {main_character} "was going to" place + ". Suddenly," {pronoun} "saw" thing + "! And" pronoun "said: '" + story + "'. What a story," {main_character} "."
         | list_story "."
-        | {animal} "s are" - animal_verb ". Isn't that" - adj "?";
+        | {animal} "s are" animal_verb + ". Isn't that" adj + "?";
 
-list_story --> {main_character: name} {other_character: name} {main_character} - verbs - {other_character} - "and then" - list_story
+list_story --> {main_character: name} {other_character: name} {main_character} verbs {other_character} "and then" list_story
     | " "
     ;
 

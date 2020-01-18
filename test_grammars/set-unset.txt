@@ -4,5 +4,5 @@ start --> {:plural} foo
 
 foo -{:plural}-> "foos"
     | "foo"
-    -{:plural}-> {!plural} "no. exactly one" - foo
+    -{:plural}-> {!plural} "no. exactly one" foo
     ;

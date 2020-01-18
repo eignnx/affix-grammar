@@ -1,4 +1,4 @@
-start --> a - b - c ".";
+start --> a b c + ".";
 
 a --> "A";
 b --> "big";

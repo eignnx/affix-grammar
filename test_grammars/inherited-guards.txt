@@ -1,10 +1,10 @@
-start --> "Je vais" - to_place ".";
+start --> "Je vais" to_place + ".";
 
-to_place --> "en" - place
-           | {:plur} "aux" - place
-           | {:definite, gender: "m"} "au" - place
-           | {:definite, gender: "f"} "a la" - place
-           | {!definite} "en" - place
+to_place --> "en" place
+           | {:plur} "aux" place
+           | {:definite, gender: "m"} "au" place
+           | {:definite, gender: "f"} "a la" place
+           | {!definite} "en" place
            ;
 
 place -{:plur}-> "États-Unis" | "toilettes"
