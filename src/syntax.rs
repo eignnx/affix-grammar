@@ -7,6 +7,7 @@ pub enum Token<S: Clone = Sym> {
     Lit(S),
     Plus,
     Meta(Vector<EvalStmt<S>>),
+    Scoped(Vector<Token>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

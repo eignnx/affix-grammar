@@ -112,13 +112,18 @@ impl Generator {
                     let _ = state.insert(*key, vector![OutputSym::Plus]);
                 }
                 Token::Var(sym) => {
-                    let sentence = self.generate_non_unique(*sym, state);
+                    let sentence = self.generate_non_unique_from_start(*sym, state);
                     let _ = state.insert(*key, sentence);
                 }
                 Token::Meta(stmts) => {
                     for stmt in stmts {
                         self.eval(stmt, state);
                     }
+                }
+                Token::Scoped(sentence) => {
+                    let generated = self
+                        .generate_non_unique_from_sentence(sentence.clone(), &mut state.clone());
+                    let _ = state.insert(*key, generated);
                 }
             },
             EvalStmt::Set(key) => {
@@ -162,6 +167,11 @@ impl Generator {
         }
     }
 
+    fn generate_non_unique_from_start(&self, start: Sym, state: &mut State) -> Vector<OutputSym> {
+        let sentence = vector![Token::Var(start)];
+        self.generate_non_unique_from_sentence(sentence, state)
+    }
+
     /// Psuedo-code:
     /// Start with the start symbol. Call this `sentence`.
     /// Repeat until there are no non-terminals in `sentence`:
@@ -171,8 +181,11 @@ impl Generator {
     ///             Collect each rule that the non-terminal matches against.
     ///             Select one of those rules at random.
     ///             Append it's body onto the new sentence.
-    fn generate_non_unique(&self, start: Sym, state: &mut State) -> Vector<OutputSym> {
-        let mut sentence = vector![Token::Var(start)];
+    fn generate_non_unique_from_sentence(
+        &self,
+        mut sentence: Vector<Token>,
+        state: &mut State,
+    ) -> Vector<OutputSym> {
         let mut more_to_do = true;
 
         while more_to_do {
@@ -212,6 +225,14 @@ impl Generator {
                             self.eval(stmt, state);
                         }
                     }
+                    Token::Scoped(sentence) => {
+                        self.generate_non_unique_from_sentence(
+                            sentence.clone(),
+                            &mut state.clone(),
+                        )
+                        .into_iter()
+                        .for_each(|sym| new_sentence.push_back(sym.into()));
+                    }
                 }
                 sentence = new_sentence.clone();
             }
@@ -222,6 +243,7 @@ impl Generator {
             .into_iter()
             .map(|tok| match tok {
                 Token::Lit(sym) => OutputSym::Sym(sym),
+                Token::Plus => OutputSym::Plus,
                 Token::Var(s) => panic!(
                     "Still non-terminal {:?} left in final sentence!",
                     self.symbol_pool
@@ -230,7 +252,7 @@ impl Generator {
                         .expect("able to un-intern Sym")
                 ),
                 Token::Meta(_) => panic!("Still some meta-statement left in final sentence!"),
-                Token::Plus => OutputSym::Plus,
+                Token::Scoped(_) => panic!("Still some scoped-sentence left in final sentence!"),
             })
             .collect()
     }
@@ -266,7 +288,7 @@ impl Generator {
         let mut trials = 0;
         loop {
             let mut state = im::HashMap::new();
-            let sentence = self.generate_non_unique(start, &mut state);
+            let sentence = self.generate_non_unique_from_start(start, &mut state);
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());

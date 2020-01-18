@@ -150,6 +150,16 @@ fn plus_literal(input: &str) -> IResult<&str, Token> {
     map(char('+'), |_| Token::Plus)(input)
 }
 
+fn scoped_sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<Token>> {
+    move |input| {
+        delimited(
+            char('('),
+            delimited(multispace0, sentence(syms.clone()), multispace0),
+            char(')'),
+        )(input)
+    }
+}
+
 fn token(syms: Syms) -> impl Fn(&str) -> IResult<&str, Token> {
     move |input| {
         alt((
@@ -157,6 +167,7 @@ fn token(syms: Syms) -> impl Fn(&str) -> IResult<&str, Token> {
             map(string_literal(syms.clone()), Token::Lit),
             map(variable(syms.clone()), Token::Var),
             map(eval_stmts(syms.clone()), Token::Meta),
+            map(scoped_sentence(syms.clone()), Token::Scoped),
         ))(input)
     }
 }
