@@ -150,7 +150,7 @@ impl Generator {
             }
             let idx = self.rng.borrow_mut().gen_range(0, possibilities.len());
             let rule = possibilities[idx];
-            if rule.pred.iter().all(|stmt| self.test(stmt, state)) {
+            if rule.test.iter().all(|stmt| self.test(stmt, state)) {
                 return Some(rule);
             } else {
                 possibilities.swap_remove(idx);

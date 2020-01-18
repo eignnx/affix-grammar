@@ -32,7 +32,7 @@ pub enum TestStmt<S: Clone = Sym> {
 #[derive(Debug)]
 pub struct Rule {
     pub(crate) head: Sym,
-    pub(crate) pred: Vector<TestStmt>,
+    pub(crate) test: Vector<TestStmt>,
     pub(crate) body: Vector<Token>,
 }
 

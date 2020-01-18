@@ -233,7 +233,7 @@ fn rule(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vec<Rule>> {
             .flat_map(|(guard_stmts, sentences)| {
                 sentences.into_iter().map(move |sentence| Rule {
                     head: head.clone(),
-                    pred: guard_stmts.clone(),
+                    test: guard_stmts.clone(),
                     body: sentence,
                 })
             })
