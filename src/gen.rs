@@ -1,4 +1,4 @@
-use crate::syntax::{Grammar, Rule, Stmt, Token};
+use crate::syntax::{EvalStmt, Grammar, Rule, TestStmt, Token};
 use im::{vector, Vector};
 use rand::Rng;
 use std::{
@@ -12,7 +12,7 @@ use std::{
 };
 use string_interner::{StringInterner, Sym};
 
-pub type State = im::HashMap<Sym, Sym>;
+type State = im::HashMap<Sym, Vector<OutputSym>>;
 
 pub type Syms = Rc<RefCell<StringInterner<Sym>>>;
 
@@ -34,6 +34,21 @@ enum OutputSym {
     Plus, // For concatenation without space insertion.
 }
 
+impl From<OutputSym> for Token {
+    fn from(output_sym: OutputSym) -> Self {
+        match output_sym {
+            OutputSym::Sym(sym) => Token::Lit(sym),
+            OutputSym::Plus => Token::Plus,
+        }
+    }
+}
+
+impl From<Sym> for OutputSym {
+    fn from(sym: Sym) -> Self {
+        Self::Sym(sym)
+    }
+}
+
 const DEFAULT_MAX_TRIALS: usize = 1000;
 
 impl Generator {
@@ -47,38 +62,45 @@ impl Generator {
         }
     }
 
-    fn test(&self, stmt: &Stmt, state: &State) -> bool {
+    fn symbol_eq_sentence(&self, sym: Sym, sentence: &Vector<OutputSym>) -> bool {
+        let joined = self.join_symbols(sentence.iter());
+        self.intern(&joined) == sym
+    }
+
+    fn test(&self, stmt: &TestStmt, state: &State) -> bool {
         match stmt {
-            Stmt::Key(key, value) => match value {
-                Token::Lit(sym) => state.get(&key) == Some(&sym),
-                Token::Plus => false, // TODO: is there a cooler way to handle this?
-                Token::Var(_) => unimplemented!(
-                    "this should probably entail PARSING according to the specified rule"
-                ),
-                Token::Meta(_) => unimplemented!("what would this even mean?"),
-            },
-            Stmt::NotKey(key, value) => state.get(&key) != Some(&value),
-            Stmt::Set(key) => state.contains_key(&key),
-            Stmt::Unset(key) => !state.contains_key(&key),
-            Stmt::Lookup(_) => {
-                unimplemented!("Lookup syntax is not supported in a guard expression!")
+            TestStmt::Key(key, value) => {
+                if let Some(stored) = state.get(key) {
+                    self.symbol_eq_sentence(*value, stored)
+                } else {
+                    false
+                }
             }
+            TestStmt::NotKey(key, value) => {
+                if let Some(stored) = state.get(&key) {
+                    !self.symbol_eq_sentence(*value, stored)
+                } else {
+                    true
+                }
+            }
+            // Note: `{:foo}` tests that state contains some binding for `foo`,
+            // not that state contains the binding `foo => foo`.
+            TestStmt::Set(key) => state.contains_key(&key),
+            TestStmt::Unset(key) => !state.contains_key(&key),
         }
     }
 
-    fn eval(&self, stmt: &Stmt, state: &mut State) -> Option<Sym> {
+    fn eval(&self, stmt: &EvalStmt, state: &mut State) -> Option<Vector<OutputSym>> {
         match stmt {
-            Stmt::Key(key, value) => match value {
+            EvalStmt::Key(key, value) => match value {
                 Token::Lit(sym) => {
-                    let _ = state.insert(*key, *sym);
+                    let _ = state.insert(*key, vector![OutputSym::Sym(*sym)]);
                     None
                 }
                 Token::Plus => None, // TODO: Could we output the Plus to eat a space outside?
                 Token::Var(sym) => {
                     let sentence = self.generate_non_unique(*sym, state);
-                    let sentence_text = self.join_symbols(sentence.iter());
-                    let sentence_sym = self.intern(&sentence_text);
-                    let _ = state.insert(*key, sentence_sym);
+                    let _ = state.insert(*key, sentence);
                     None
                 }
                 Token::Meta(stmts) => {
@@ -89,27 +111,19 @@ impl Generator {
                     last
                 }
             },
-            Stmt::NotKey(key, value) => {
-                if state.get(key) == Some(value) {
-                    state.remove(key);
-                }
+            EvalStmt::Set(key) => {
+                let _ = state.insert(*key, vector![OutputSym::Sym(*key)]);
                 None
             }
-            Stmt::Set(key) => {
-                let _ = state.insert(key.clone(), key.clone());
-                None
-            }
-            Stmt::Unset(key) => {
+            EvalStmt::Unset(key) => {
                 if state.get(key) != None {
                     state.remove(key);
                 }
                 None
             }
-            Stmt::Lookup(key) => state.get(&key).map(|x| x.clone()).or_else(|| {
+            EvalStmt::Lookup(key) => state.get(&key).map(|x| x.clone()).or_else(|| {
                 let sentence = self.generate_non_unique(*key, state);
-                let sentence_text = self.join_symbols(sentence.iter());
-                let sentence_sym = self.intern(&sentence_text);
-                Some(sentence_sym)
+                Some(sentence)
             }),
         }
     }
@@ -167,9 +181,10 @@ impl Generator {
                     Token::Lit(_) => new_sentence.push_back(token.clone()),
                     Token::Meta(stmts) => {
                         for stmt in &stmts {
-                            if let Some(sym) = self.eval(stmt, state) {
-                                // TODO: Should this push `Token`s rather than `Sym`s?
-                                new_sentence.push_back(Token::Lit(sym.clone()));
+                            if let Some(sentence) = self.eval(stmt, state) {
+                                for output_sym in sentence {
+                                    new_sentence.push_back(output_sym.into());
+                                }
                             }
                         }
                     }
