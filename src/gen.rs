@@ -79,6 +79,10 @@ impl Generator {
         self.intern(&joined) == sym
     }
 
+    fn resolve(&self, sym: Sym) -> String {
+        self.symbol_pool.borrow().resolve(sym).unwrap().into()
+    }
+
     fn test(&self, stmt: &TestStmt, state: &State) -> bool {
         match stmt {
             TestStmt::Key(key, value) => {
