@@ -108,28 +108,24 @@ impl Generator {
 
     fn eval(&self, stmt: &EvalStmt, state: &mut State) {
         match stmt {
-            EvalStmt::Key(key, value) => match value {
-                Token::Lit(sym) => {
-                    let _ = state.insert(*key, vector![sym.into()]);
-                }
-                Token::Plus => {
-                    let _ = state.insert(*key, vector![OutputSym::Plus]);
-                }
-                Token::Var(sym) => {
-                    let sentence = self.generate_non_unique_from_start(*sym, state);
-                    let _ = state.insert(*key, sentence);
-                }
-                Token::Meta(stmts) => {
-                    for stmt in stmts {
-                        self.eval(stmt, state);
-                    }
-                }
-                Token::Scoped(sentence) => {
-                    let generated = self
-                        .generate_non_unique_from_sentence(sentence.clone(), &mut state.clone());
-                    let _ = state.insert(*key, generated);
-                }
-            },
+            EvalStmt::Key(key, Token::Lit(sym)) => {
+                let _ = state.insert(*key, vector![sym.into()]);
+            }
+            EvalStmt::Key(key, Token::Plus) => {
+                let _ = state.insert(*key, vector![OutputSym::Plus]);
+            }
+            EvalStmt::Key(key, Token::Var(sym)) => {
+                let sentence = self.generate_non_unique_from_start(*sym, state);
+                let _ = state.insert(*key, sentence);
+            }
+            EvalStmt::Key(_, Token::Meta(_)) => {
+                unimplemented!("What would this even mean?");
+            }
+            EvalStmt::Key(key, Token::Scoped(sentence)) => {
+                let generated =
+                    self.generate_non_unique_from_sentence(sentence.clone(), &mut state.clone());
+                let _ = state.insert(*key, generated);
+            }
             EvalStmt::Set(key) => {
                 let _ = state.insert(*key, vector![OutputSym::Sym(*key)]);
             }
