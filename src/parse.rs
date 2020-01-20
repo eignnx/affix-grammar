@@ -85,9 +85,9 @@ fn eval_stmt(syms: Syms) -> impl Fn(&str) -> IResult<&str, EvalStmt> {
         let unset = preceded(char('!'), variable(syms.clone()));
 
         alt((
-            map(key, |(key, value)| EvalStmt::Key(key, value)),
-            map(set, |key| EvalStmt::Set(key)),
-            map(unset, |key| EvalStmt::Unset(key)),
+            map(key, |(key, value)| EvalStmt::KeyValue(key, value)),
+            map(set, |key| EvalStmt::FlagSet(key)),
+            map(unset, |key| EvalStmt::FlagUnset(key)),
         ))(input)
     }
 }
@@ -125,10 +125,10 @@ fn test_stmt(syms: Syms) -> impl Fn(&str) -> IResult<&str, TestStmt> {
         let unset = preceded(char('!'), variable(syms.clone()));
 
         alt((
-            map(key, |(key, value)| TestStmt::Key(key, value)),
-            map(not_key, |(key, value)| TestStmt::NotKey(key, value)),
-            map(set, TestStmt::Set),
-            map(unset, TestStmt::Unset),
+            map(key, |(key, value)| TestStmt::KeyValue(key, value)),
+            map(not_key, |(key, value)| TestStmt::NotKeyValue(key, value)),
+            map(set, TestStmt::FlagSet),
+            map(unset, TestStmt::FlagUnset),
         ))(input)
     }
 }

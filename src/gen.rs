@@ -79,20 +79,21 @@ impl Generator {
         self.intern(&joined) == sym
     }
 
+    #[allow(unused)]
     fn resolve(&self, sym: Sym) -> String {
         self.symbol_pool.borrow().resolve(sym).unwrap().into()
     }
 
     fn test(&self, stmt: &TestStmt, state: &State) -> bool {
         match stmt {
-            TestStmt::Key(key, value) => {
+            TestStmt::KeyValue(key, value) => {
                 if let Some(stored) = state.get(key) {
                     self.symbol_eq_sentence(*value, stored)
                 } else {
                     false
                 }
             }
-            TestStmt::NotKey(key, value) => {
+            TestStmt::NotKeyValue(key, value) => {
                 if let Some(stored) = state.get(&key) {
                     !self.symbol_eq_sentence(*value, stored)
                 } else {
@@ -101,35 +102,35 @@ impl Generator {
             }
             // Note: `{:foo}` tests that state contains some binding for `foo`,
             // not that state contains the binding `foo => foo`.
-            TestStmt::Set(key) => state.contains_key(&key),
-            TestStmt::Unset(key) => !state.contains_key(&key),
+            TestStmt::FlagSet(key) => state.contains_key(&key),
+            TestStmt::FlagUnset(key) => !state.contains_key(&key),
         }
     }
 
     fn eval(&self, stmt: &EvalStmt, state: &mut State) {
         match stmt {
-            EvalStmt::Key(key, Token::Lit(sym)) => {
+            EvalStmt::KeyValue(key, Token::Lit(sym)) => {
                 let _ = state.insert(*key, vector![sym.into()]);
             }
-            EvalStmt::Key(key, Token::Plus) => {
+            EvalStmt::KeyValue(key, Token::Plus) => {
                 let _ = state.insert(*key, vector![OutputSym::Plus]);
             }
-            EvalStmt::Key(key, Token::Var(sym)) => {
+            EvalStmt::KeyValue(key, Token::Var(sym)) => {
                 let sentence = self.generate_non_unique_from_start(*sym, state);
                 let _ = state.insert(*key, sentence);
             }
-            EvalStmt::Key(_, Token::Meta(_)) => {
+            EvalStmt::KeyValue(_, Token::Meta(_)) => {
                 unimplemented!("What would this even mean?");
             }
-            EvalStmt::Key(key, Token::Scoped(sentence)) => {
+            EvalStmt::KeyValue(key, Token::Scoped(sentence)) => {
                 let generated =
                     self.generate_non_unique_from_sentence(sentence.clone(), &mut state.clone());
                 let _ = state.insert(*key, generated);
             }
-            EvalStmt::Set(key) => {
+            EvalStmt::FlagSet(key) => {
                 let _ = state.insert(*key, vector![OutputSym::Sym(*key)]);
             }
-            EvalStmt::Unset(key) => {
+            EvalStmt::FlagUnset(key) => {
                 if state.get(key) != None {
                     state.remove(key);
                 }

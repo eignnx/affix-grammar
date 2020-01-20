@@ -12,21 +12,24 @@ pub enum Token<S: Clone = Sym> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EvalStmt<S: Clone = Sym> {
-    Key(S, Token<S>),
-    Set(S),
-    Unset(S),
+    /// { var: token }
+    KeyValue(S, Token<S>),
+    /// { :var }
+    FlagSet(S),
+    /// { !var }
+    FlagUnset(S),
 }
 
 #[derive(Debug, Clone)]
 pub enum TestStmt<S: Clone = Sym> {
     /// { var: "lit" }
-    Key(S, S),
+    KeyValue(S, S),
     /// { var! "lit" }
-    NotKey(S, S),
+    NotKeyValue(S, S),
     /// { :var }
-    Set(S),
+    FlagSet(S),
     /// { !var }
-    Unset(S),
+    FlagUnset(S),
 }
 
 #[derive(Debug)]
