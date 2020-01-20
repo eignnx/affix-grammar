@@ -3,10 +3,19 @@ use string_interner::Sym;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token<S: Clone = Sym> {
+    /// var_name
     Var(S),
+
+    /// "string literal"
     Lit(S),
+
+    /// +
     Plus,
+
+    /// { stmt_1, stmt_2, ..., stmt_n }
     Meta(Vector<EvalStmt<S>>),
+
+    /// ( sentence )
     Scoped(Vector<Token>),
 }
 
@@ -14,8 +23,10 @@ pub enum Token<S: Clone = Sym> {
 pub enum EvalStmt<S: Clone = Sym> {
     /// { var: token }
     KeyValue(S, Token<S>),
+
     /// { :var }
     FlagSet(S),
+
     /// { !var }
     FlagUnset(S),
 }
@@ -24,10 +35,13 @@ pub enum EvalStmt<S: Clone = Sym> {
 pub enum TestStmt<S: Clone = Sym> {
     /// { var: "lit" }
     KeyValue(S, S),
+
     /// { var! "lit" }
     NotKeyValue(S, S),
+
     /// { :var }
     FlagSet(S),
+
     /// { !var }
     FlagUnset(S),
 }
