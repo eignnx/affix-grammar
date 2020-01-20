@@ -110,29 +110,12 @@ impl Generator {
         match stmt {
             EvalStmt::Key(key, Token::Lit(sym)) => {
                 let _ = state.insert(*key, vector![sym.into()]);
-                println!(
-                    "eval'ed {{ {}: '{}'}}",
-                    self.resolve(*key),
-                    self.resolve(*sym)
-                );
             }
             EvalStmt::Key(key, Token::Plus) => {
                 let _ = state.insert(*key, vector![OutputSym::Plus]);
             }
             EvalStmt::Key(key, Token::Var(sym)) => {
                 let sentence = self.generate_non_unique_from_start(*sym, state);
-                println!(
-                    "eval'ed {{ {}: {} = {:?}}}",
-                    self.resolve(*key),
-                    self.resolve(*sym),
-                    sentence
-                        .iter()
-                        .map(|x| match x {
-                            OutputSym::Sym(sym) => self.resolve(*sym),
-                            OutputSym::Plus => format!("+"),
-                        })
-                        .collect::<Vec<_>>()
-                );
                 let _ = state.insert(*key, sentence);
             }
             EvalStmt::Key(_, Token::Meta(_)) => {
@@ -234,21 +217,6 @@ impl Generator {
                                 self.symbol_pool.borrow().resolve(sym).unwrap()
                             );
                         });
-
-                    // println!(
-                    //     "expanding `{}` --> {:?}",
-                    //     self.resolve(sym),
-                    //     tokens_to_add
-                    //         .iter()
-                    //         .map(|t| match t {
-                    //             Token::Lit(sym) => format!("'{}'", self.resolve(*sym)),
-                    //             Token::Var(sym) => self.resolve(*sym),
-                    //             Token::Plus => format!("+"),
-                    //             Token::Meta(_) => format!("Meta(...)"),
-                    //             Token::Scoped(_) => format!("Scoped(...)"),
-                    //         })
-                    //         .collect::<Vec<_>>()
-                    // );
 
                     new_sentence.append(tokens_to_add);
                 }
