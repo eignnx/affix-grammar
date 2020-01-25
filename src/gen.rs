@@ -117,9 +117,7 @@ impl Generator {
                 state.insert_local(*key, vector![OutputSym::Plus]);
             }
             EvalStmt::KeyValue(key, Token::Var(sym)) => {
-                state.push_frame();
                 let sentence = self.generate_non_unique_from_start(*sym, state);
-                state.pop_frame();
                 state.insert_local(*key, sentence);
             }
             EvalStmt::KeyValue(_, Token::Meta(_)) => {
