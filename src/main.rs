@@ -1,4 +1,5 @@
 mod cli;
+mod env;
 mod gen;
 mod parse;
 mod syntax;

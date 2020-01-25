@@ -1,3 +1,4 @@
+use crate::env::Env;
 use crate::syntax::{EvalStmt, Grammar, Rule, TestStmt, Token};
 use im::{vector, Vector};
 use rand::Rng;
@@ -12,7 +13,7 @@ use std::{
 };
 use string_interner::{StringInterner, Sym};
 
-type State = im::HashMap<Sym, Vector<OutputSym>>;
+type State = Env<Sym, Vector<OutputSym>>;
 
 pub type Syms = Rc<RefCell<StringInterner<Sym>>>;
 
@@ -28,7 +29,7 @@ pub struct Generator {
     pub(crate) max_trials: usize,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum OutputSym {
     Sym(Sym),
     Plus, // For concatenation without space insertion.
@@ -110,28 +111,31 @@ impl Generator {
     fn eval(&self, stmt: &EvalStmt, state: &mut State) {
         match stmt {
             EvalStmt::KeyValue(key, Token::Lit(sym)) => {
-                let _ = state.insert(*key, vector![sym.into()]);
+                state.insert_local(*key, vector![sym.into()]);
             }
             EvalStmt::KeyValue(key, Token::Plus) => {
-                let _ = state.insert(*key, vector![OutputSym::Plus]);
+                state.insert_local(*key, vector![OutputSym::Plus]);
             }
             EvalStmt::KeyValue(key, Token::Var(sym)) => {
+                state.push_frame();
                 let sentence = self.generate_non_unique_from_start(*sym, state);
-                let _ = state.insert(*key, sentence);
+                state.pop_frame();
+                state.insert_local(*key, sentence);
             }
             EvalStmt::KeyValue(_, Token::Meta(_)) => {
                 unimplemented!("What would this even mean?");
             }
             EvalStmt::KeyValue(key, Token::Scoped(sentence)) => {
-                let generated =
-                    self.generate_non_unique_from_sentence(sentence.clone(), &mut state.clone());
-                let _ = state.insert(*key, generated);
+                state.push_frame();
+                let generated = self.generate_non_unique_from_sentence(sentence.clone(), state);
+                state.pop_frame();
+                state.insert_local(*key, generated);
             }
             EvalStmt::FlagSet(key) => {
-                let _ = state.insert(*key, vector![OutputSym::Sym(*key)]);
+                let _ = state.insert_local(*key, vector![OutputSym::Sym(*key)]);
             }
             EvalStmt::FlagUnset(key) => {
-                if state.get(key) != None {
+                if state.get(key).is_some() {
                     state.remove(key);
                 }
             }
@@ -208,7 +212,7 @@ impl Generator {
                         .get(&sym)
                         .map(Clone::clone)
                         .or_else(|| {
-                            let rule = self.choose_rule(sym, state)?;
+                            let rule = self.choose_rule(sym, &state)?;
                             let next_sentence = rule.body.clone();
                             Some(self.generate_non_unique_from_sentence(next_sentence, state))
                         })
@@ -227,9 +231,11 @@ impl Generator {
                     }
                 }
                 Token::Scoped(sentence) => {
-                    self.generate_non_unique_from_sentence(sentence.clone(), &mut state.clone())
+                    state.push_frame();
+                    self.generate_non_unique_from_sentence(sentence.clone(), state)
                         .into_iter()
                         .for_each(|sym| new_sentence.push_back(sym.into()));
+                    state.pop_frame();
                 }
             }
         }
@@ -267,8 +273,7 @@ impl Generator {
         let start = self.symbol_pool.borrow_mut().get_or_intern("start");
         let mut trials = 0;
         loop {
-            let mut state = im::HashMap::new();
-            let sentence = self.generate_non_unique_from_start(start, &mut state);
+            let sentence = self.generate_non_unique_from_start(start, &mut Env::new());
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());
