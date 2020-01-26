@@ -123,8 +123,8 @@ impl Generator {
             EvalStmt::KeyValue(_, Token::Meta(_)) => {
                 unimplemented!("What would this even mean?");
             }
-            EvalStmt::KeyValue(key, Token::Scoped(sentence)) => {
-                state.push_frame();
+            EvalStmt::KeyValue(key, Token::Scoped(sentence, watch_vars)) => {
+                state.push_frame_and_watch(watch_vars.clone());
                 let generated = self.generate_non_unique_from_sentence(sentence.clone(), state);
                 state.pop_frame();
                 state.insert_local(*key, generated);
@@ -228,8 +228,8 @@ impl Generator {
                         self.eval(stmt, state);
                     }
                 }
-                Token::Scoped(sentence) => {
-                    state.push_frame();
+                Token::Scoped(sentence, watch_vars) => {
+                    state.push_frame_and_watch(watch_vars.clone());
                     self.generate_non_unique_from_sentence(sentence.clone(), state)
                         .into_iter()
                         .for_each(|sym| new_sentence.push_back(sym.into()));

@@ -150,13 +150,25 @@ fn plus_literal(input: &str) -> IResult<&str, Token> {
     map(char('+'), |_| Token::Plus)(input)
 }
 
-fn scoped_sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<Token>> {
+/// Matches either `(t1 t2 ... tn)` or `(t1 t2 ... tn)[v1, v2, ... vn]`.
+fn scoped_sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, (Vector<Token>, Vec<Sym>)> {
     move |input| {
-        delimited(
-            char('('),
-            delimited(multispace0, sentence(syms.clone()), multispace0),
-            char(')'),
-        )(input)
+        let comma_space = tuple((char(','), multispace1));
+        tuple((
+            delimited(
+                char('('),
+                delimited(multispace0, sentence(syms.clone()), multispace0),
+                char(')'),
+            ),
+            map(
+                opt(delimited(
+                    char('['),
+                    separated_list(comma_space, variable(syms.clone())),
+                    char(']'),
+                )),
+                |vars_opt| vars_opt.unwrap_or_default(),
+            ),
+        ))(input)
     }
 }
 
@@ -165,16 +177,16 @@ fn token(syms: Syms) -> impl Fn(&str) -> IResult<&str, Token> {
         alt((
             plus_literal,
             map(string_literal(syms.clone()), Token::Lit),
-            map(variable(syms.clone()), Token::Var),
             map(eval_stmts(syms.clone()), Token::Meta),
-            map(scoped_sentence(syms.clone()), Token::Scoped),
+            map(scoped_sentence(syms.clone()), |(toks, vars)| {
+                Token::Scoped(toks, vars)
+            }),
+            map(variable(syms.clone()), Token::Var),
         ))(input)
     }
 }
 
-type Sentence = Vector<Token>;
-
-fn sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, Sentence> {
+fn sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<Token>> {
     move |input| {
         let (rest, vec) = separated_nonempty_list(multispace1, token(syms.clone()))(input)?;
         let vector = vec.into_iter().collect();

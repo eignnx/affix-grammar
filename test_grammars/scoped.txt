@@ -1,6 +1,8 @@
-start --> {character: animal} "There once was a" character "who told a story: '" + (start)
-                              "The end', said" character "with a" action + "."
-        | "I ate a potato last week."
+start --> {character: animal} "There once was a" character "who told a story: '" + (start)[prev_character]
+          "The end', said" character "with a" action + "."
+          "Did you like that story about the" prev_character + "?"
+          {prev_character: character}
+        | {character: "potato"} "I ate a potato last week." {prev_character: "potato"}
         ;
 
 animal --> "Penguin" {action: "waddle"}

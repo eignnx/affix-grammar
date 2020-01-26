@@ -16,7 +16,9 @@ pub enum Token<S: Clone = Sym> {
     Meta(Vector<EvalStmt<S>>),
 
     /// ( sentence )
-    Scoped(Vector<Token>),
+    /// or
+    /// ( sentence )[var_1, var_2, ... var_n]
+    Scoped(Vector<Token>, Vec<Sym>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
