@@ -1,4 +1,4 @@
-use crate::gen::{make_symbol_pool, Syms};
+use internship::IStr;
 use nom::{
     branch::alt,
     bytes::complete::{escaped, is_not, tag},
@@ -8,12 +8,11 @@ use nom::{
     sequence::{delimited, preceded},
     IResult,
 };
-use string_interner::Sym;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Lex {
-    Word(Sym),
-    Quoted(Sym),
+    Word(IStr),
+    Quoted(IStr),
     ArrowEnd,
     ArrowStart,
     Pipe,
@@ -31,7 +30,7 @@ pub enum Lex {
     Eof,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum WsLex {
     Ws,
     Comment,
@@ -40,17 +39,12 @@ enum WsLex {
 
 pub struct Lexer<'input> {
     input: &'input str,
-    syms: Syms,
     done: bool,
 }
 
 impl<'input> Lexer<'input> {
-    pub fn new(input: &'input str, syms: Syms) -> Self {
-        Self {
-            input,
-            syms,
-            done: false,
-        }
+    pub fn new(input: &'input str) -> Self {
+        Self { input, done: false }
     }
 
     pub fn to_slice<'buf>(
@@ -66,11 +60,7 @@ impl<'input> Lexer<'input> {
 
 impl<'input> From<&'input str> for Lexer<'input> {
     fn from(input: &'input str) -> Self {
-        Self {
-            input,
-            syms: make_symbol_pool(),
-            done: false,
-        }
+        Self { input, done: false }
     }
 }
 
@@ -85,7 +75,7 @@ impl<'input> Iterator for Lexer<'input> {
         }
 
         let lex = loop {
-            let (rest, lex) = match lexeme_parser(self.input, self.syms.clone()) {
+            let (rest, lex) = match lexeme_parser(self.input) {
                 Ok(tup) => tup,
                 Err(e) => return Some(Err(e)),
             };
@@ -104,12 +94,12 @@ impl<'input> Iterator for Lexer<'input> {
     }
 }
 
-fn lexeme_parser(input: &str, syms: Syms) -> IResult<&str, WsLex> {
+fn lexeme_parser(input: &str) -> IResult<&str, WsLex> {
     alt((
         map(
             alt((
-                map(string_literal(syms.clone()), Lex::Quoted),
-                map(variable(syms.clone()), Lex::Word),
+                map(string_literal, Lex::Quoted),
+                map(variable, Lex::Word),
                 map(tag("->"), |_| Lex::ArrowEnd),
                 map(tag("-"), |_| Lex::ArrowStart),
                 map(char('|'), |_| Lex::Pipe),
@@ -151,40 +141,34 @@ fn eof_(input: &str) -> IResult<&str, &str> {
     eof!(input,)
 }
 
-fn string_literal(syms: Syms) -> impl Fn(&str) -> IResult<&str, Sym> {
-    move |input| {
-        // See: https://python-reference.readthedocs.io/en/latest/docs/str/escapes.html
-        //
-        // \a           ASCII bell
-        // \b           ASCII backspace
-        // \f           ASCII formfeed
-        // \n           ASCII linefeed
-        // \N{name}     character named NAME in the Unicode database
-        // \r           ASCII carriage return
-        // \t           ASCII horizontal tab
-        // \uxxxx       character with 16-bit hex value XXXX
-        // \Uxxxxxxxx   character with 32-bit hex value XXXXXXXX
-        // \v           ASCII vertical tab
-        // \ooo         character with octal value OOO
-        // \hxx         Character with hex value XX
-        let double_quoted_str_escape = r#"\"abfnNrtuUvx01234567"#;
-        let double_quoted = delimited(
-            char('"'),
-            escaped(is_not(r#""\"#), '\\', one_of(double_quoted_str_escape)),
-            char('"'),
-        );
-        let (rest, content) = double_quoted(input)?;
-        let sym = syms.borrow_mut().get_or_intern(content);
-        Ok((rest, sym))
-    }
+fn string_literal(input: &str) -> IResult<&str, IStr> {
+    // See: https://python-reference.readthedocs.io/en/latest/docs/str/escapes.html
+    //
+    // \a           ASCII bell
+    // \b           ASCII backspace
+    // \f           ASCII formfeed
+    // \n           ASCII linefeed
+    // \N{name}     character named NAME in the Unicode database
+    // \r           ASCII carriage return
+    // \t           ASCII horizontal tab
+    // \uxxxx       character with 16-bit hex value XXXX
+    // \Uxxxxxxxx   character with 32-bit hex value XXXXXXXX
+    // \v           ASCII vertical tab
+    // \ooo         character with octal value OOO
+    // \hxx         Character with hex value XX
+    let double_quoted_str_escape = r#"\"abfnNrtuUvx01234567"#;
+    let double_quoted = delimited(
+        char('"'),
+        escaped(is_not(r#""\"#), '\\', one_of(double_quoted_str_escape)),
+        char('"'),
+    );
+    let (rest, content) = double_quoted(input)?;
+    Ok((rest, IStr::new(content)))
 }
 
-fn variable(syms: Syms) -> impl Fn(&str) -> IResult<&str, Sym> {
-    move |input| {
-        let (rest, name) = re_find!(input, r"^([a-zA-Z_][a-zA-Z0-9_]*)")?;
-        let sym = syms.borrow_mut().get_or_intern(name);
-        Ok((rest, sym))
-    }
+fn variable(input: &str) -> IResult<&str, IStr> {
+    let (rest, name) = re_find!(input, r"^([a-zA-Z_][a-zA-Z0-9_]*)")?;
+    Ok((rest, IStr::new(name)))
 }
 
 fn take_until_line_end_or_eof(input: &str) -> IResult<&str, &str> {
@@ -201,11 +185,11 @@ fn comment(input: &str) -> IResult<&str, &str> {
     preceded(char('#'), take_until_line_end_or_eof)(input)
 }
 
-pub fn word(input: &[Lex]) -> IResult<&[Lex], Sym> {
+pub fn word(input: &[Lex]) -> IResult<&[Lex], IStr> {
     input
         .split_first()
         .and_then(|(first, rest)| match first {
-            Lex::Word(sym) => Some((rest, *sym)),
+            Lex::Word(sym) => Some((rest, sym.clone())),
             _ => None,
         })
         .ok_or(nom::Err::Error((
@@ -214,11 +198,11 @@ pub fn word(input: &[Lex]) -> IResult<&[Lex], Sym> {
         )))
 }
 
-pub fn quoted(input: &[Lex]) -> IResult<&[Lex], Sym> {
+pub fn quoted(input: &[Lex]) -> IResult<&[Lex], IStr> {
     input
         .split_first()
         .and_then(|(first, rest)| match first {
-            Lex::Quoted(sym) => Some((rest, *sym)),
+            Lex::Quoted(sym) => Some((rest, sym.clone())),
             _ => None,
         })
         .ok_or(nom::Err::Error((
@@ -232,7 +216,7 @@ pub fn lexeme(target: Lex) -> impl Fn(&[Lex]) -> IResult<&[Lex], Lex> {
         input
             .split_first()
             .filter(|(first, _)| *first == &target)
-            .map(|(first, rest)| (rest, *first))
+            .map(|(first, rest)| (rest, first.clone()))
             .ok_or(nom::Err::Error((
                 input,
                 nom::error::ErrorKind::AlphaNumeric,

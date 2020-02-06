@@ -1,6 +1,7 @@
 use crate::env::Env;
 use crate::syntax::{EvalStmt, Grammar, Rule, TestStmt, Token};
 use im::{vector, Vector};
+use internship::IStr;
 use rand::Rng;
 use std::{
     cell::RefCell,
@@ -9,29 +10,20 @@ use std::{
     fs,
     io::{self, Read},
     path::Path,
-    rc::Rc,
 };
-use string_interner::{StringInterner, Sym};
 
-type State = Env<Sym, Vector<OutputSym>>;
-
-pub type Syms = Rc<RefCell<StringInterner<Sym>>>;
-
-pub fn make_symbol_pool() -> Syms {
-    Rc::new(RefCell::new(StringInterner::default()))
-}
+type State = Env<IStr, Vector<OutputSym>>;
 
 pub struct Generator {
     grammar: Grammar,
     rng: RefCell<rand::rngs::ThreadRng>,
-    symbol_pool: Syms,
     seen_sentences: HashSet<im::Vector<OutputSym>>,
     pub(crate) max_trials: usize,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum OutputSym {
-    Sym(Sym),
+    Sym(IStr),
     Plus, // For concatenation without space insertion.
 }
 
@@ -50,53 +42,47 @@ impl From<&OutputSym> for Token {
     }
 }
 
-impl From<Sym> for OutputSym {
-    fn from(sym: Sym) -> Self {
+impl From<IStr> for OutputSym {
+    fn from(sym: IStr) -> Self {
         Self::Sym(sym)
     }
 }
 
-impl From<&Sym> for OutputSym {
-    fn from(sym: &Sym) -> Self {
-        Self::Sym(*sym)
+impl From<&IStr> for OutputSym {
+    fn from(sym: &IStr) -> Self {
+        Self::Sym(sym.clone())
     }
 }
 
 const DEFAULT_MAX_TRIALS: usize = 1000;
 
 impl Generator {
-    pub fn new(grammar: Grammar, symbol_pool: Syms) -> Self {
+    pub fn new(grammar: Grammar) -> Self {
         Self {
             grammar,
             rng: RefCell::new(rand::thread_rng()),
-            symbol_pool,
             seen_sentences: HashSet::new(),
             max_trials: DEFAULT_MAX_TRIALS,
         }
     }
 
-    fn symbol_eq_sentence(&self, sym: Sym, sentence: &Vector<OutputSym>) -> bool {
+    fn symbol_eq_sentence(&self, sym: IStr, sentence: &Vector<OutputSym>) -> bool {
         let joined = self.join_symbols(sentence.iter());
-        self.intern(&joined) == sym
-    }
-
-    #[allow(unused)]
-    fn resolve(&self, sym: Sym) -> String {
-        self.symbol_pool.borrow().resolve(sym).unwrap().into()
+        joined == sym.as_str()
     }
 
     fn test(&self, stmt: &TestStmt, state: &State) -> bool {
         match stmt {
             TestStmt::KeyValue(key, value) => {
                 if let Some(stored) = state.get(key) {
-                    self.symbol_eq_sentence(*value, stored)
+                    self.symbol_eq_sentence(value.clone(), stored)
                 } else {
                     false
                 }
             }
             TestStmt::NotKeyValue(key, value) => {
                 if let Some(stored) = state.get(&key) {
-                    !self.symbol_eq_sentence(*value, stored)
+                    !self.symbol_eq_sentence(value.clone(), stored)
                 } else {
                     true
                 }
@@ -111,14 +97,14 @@ impl Generator {
     fn eval(&self, stmt: &EvalStmt, state: &mut State) {
         match stmt {
             EvalStmt::KeyValue(key, Token::Lit(sym)) => {
-                state.insert_local(*key, vector![sym.into()]);
+                state.insert_local(key.clone(), vector![sym.into()]);
             }
             EvalStmt::KeyValue(key, Token::Plus) => {
-                state.insert_local(*key, vector![OutputSym::Plus]);
+                state.insert_local(key.clone(), vector![OutputSym::Plus]);
             }
             EvalStmt::KeyValue(key, Token::Var(sym)) => {
-                let sentence = self.generate_non_unique_from_start(*sym, state);
-                state.insert_local(*key, sentence);
+                let sentence = self.generate_non_unique_from_start(sym.clone(), state);
+                state.insert_local(key.clone(), sentence);
             }
             EvalStmt::KeyValue(_, Token::Meta(_)) => {
                 unimplemented!("What would this even mean?");
@@ -127,10 +113,10 @@ impl Generator {
                 state.push_frame_and_watch(watch_vars.clone());
                 let generated = self.generate_non_unique_from_sentence(sentence.clone(), state);
                 state.pop_frame();
-                state.insert_local(*key, generated);
+                state.insert_local(key.clone(), generated);
             }
             EvalStmt::FlagSet(key) => {
-                let _ = state.insert_local(*key, vector![OutputSym::Sym(*key)]);
+                let _ = state.insert_local(key.clone(), vector![OutputSym::Sym(key.clone())]);
             }
             EvalStmt::FlagUnset(key) => {
                 if state.get(key).is_some() {
@@ -140,11 +126,7 @@ impl Generator {
         }
     }
 
-    fn intern(&self, text: &str) -> Sym {
-        self.symbol_pool.borrow_mut().get_or_intern(text)
-    }
-
-    fn choose_rule(&self, sym: Sym, state: &State) -> Option<&Rule> {
+    fn choose_rule(&self, sym: IStr, state: &State) -> Option<&Rule> {
         // Collect all rules that *could* expand `token`.
         let mut possibilities = self
             .grammar
@@ -170,7 +152,7 @@ impl Generator {
         }
     }
 
-    fn generate_non_unique_from_start(&self, start: Sym, state: &mut State) -> Vector<OutputSym> {
+    fn generate_non_unique_from_start(&self, start: IStr, state: &mut State) -> Vector<OutputSym> {
         let sentence = vector![Token::Var(start)];
         self.generate_non_unique_from_sentence(sentence, state)
     }
@@ -196,7 +178,7 @@ impl Generator {
             match token {
                 Token::Lit(sym) => new_sentence.push_back(sym.into()),
                 Token::Plus => new_sentence.push_back(OutputSym::Plus),
-                Token::Var(sym) => {
+                Token::Var(ref sym) => {
                     // more_to_do = true; // We'll have to revisit.
 
                     // First, check to see if the name is in the state map.
@@ -210,15 +192,12 @@ impl Generator {
                         .get(&sym)
                         .map(Clone::clone)
                         .or_else(|| {
-                            let rule = self.choose_rule(sym, &state)?;
+                            let rule = self.choose_rule(sym.clone(), &state)?;
                             let next_sentence = rule.body.clone();
                             Some(self.generate_non_unique_from_sentence(next_sentence, state))
                         })
                         .unwrap_or_else(|| {
-                            panic!(
-                                "oops, `{}` does not match any known rule!",
-                                self.symbol_pool.borrow().resolve(sym).unwrap()
-                            );
+                            panic!("oops, `{}` does not match any known rule!", sym);
                         });
 
                     new_sentence.append(tokens_to_add);
@@ -253,12 +232,10 @@ impl Generator {
         for sym in syms {
             match sym {
                 OutputSym::Sym(sym) => {
-                    let pool_ref = self.symbol_pool.borrow();
-                    let s = pool_ref.resolve(*sym).unwrap();
                     if add_joining_space {
                         text.push(' ');
                     }
-                    text.push_str(s);
+                    text.push_str(sym.as_str());
                     add_joining_space = true;
                 }
                 OutputSym::Plus => add_joining_space = false,
@@ -268,10 +245,10 @@ impl Generator {
     }
 
     pub fn generate(&mut self) -> Option<String> {
-        let start = self.symbol_pool.borrow_mut().get_or_intern("start");
+        let start = IStr::new("start");
         let mut trials = 0;
         loop {
-            let sentence = self.generate_non_unique_from_start(start, &mut Env::new());
+            let sentence = self.generate_non_unique_from_start(start.clone(), &mut Env::new());
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());
@@ -293,9 +270,8 @@ impl TryFrom<&Path> for Generator {
         let mut file = fs::File::open(path)?;
         file.read_to_string(&mut src)?;
 
-        let symbol_pool = make_symbol_pool();
         let mut lexeme_buf = vec![];
-        let parse_res = crate::parse::parse_grammar(&src, symbol_pool.clone(), &mut lexeme_buf);
+        let parse_res = crate::parse::parse_grammar(&src, &mut lexeme_buf);
 
         let grammar = match parse_res {
             Ok(grammar) => grammar,
@@ -305,6 +281,6 @@ impl TryFrom<&Path> for Generator {
             }
         };
 
-        Ok(Self::new(grammar, symbol_pool))
+        Ok(Self::new(grammar))
     }
 }

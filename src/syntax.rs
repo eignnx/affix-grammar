@@ -1,8 +1,8 @@
 use im::Vector;
-use string_interner::Sym;
+use internship::IStr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token<S: Clone = Sym> {
+pub enum Token<S: Clone = IStr> {
     /// var_name
     Var(S),
 
@@ -18,11 +18,11 @@ pub enum Token<S: Clone = Sym> {
     /// ( sentence )
     /// or
     /// ( sentence )[var_1, var_2, ... var_n]
-    Scoped(Vector<Token>, Vec<Sym>),
+    Scoped(Vector<Token>, Vec<S>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum EvalStmt<S: Clone = Sym> {
+pub enum EvalStmt<S: Clone = IStr> {
     /// { var: token }
     KeyValue(S, Token<S>),
 
@@ -34,7 +34,7 @@ pub enum EvalStmt<S: Clone = Sym> {
 }
 
 #[derive(Debug, Clone)]
-pub enum TestStmt<S: Clone = Sym> {
+pub enum TestStmt<S: Clone = IStr> {
     /// { var: "lit" }
     KeyValue(S, S),
 
@@ -50,7 +50,7 @@ pub enum TestStmt<S: Clone = Sym> {
 
 #[derive(Debug)]
 pub struct Rule {
-    pub(crate) head: Sym,
+    pub(crate) head: IStr,
     pub(crate) test: Vector<TestStmt>,
     pub(crate) body: Vector<Token>,
 }

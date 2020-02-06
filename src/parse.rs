@@ -1,7 +1,7 @@
-use crate::gen::Syms;
 use crate::lex::{lexeme, quoted, word, Lex, Lexer};
 use crate::syntax::{EvalStmt, Grammar, Rule, TestStmt, Token};
 use im::{vector, Vector};
+use internship::IStr;
 use nom::{
     branch::alt,
     combinator::{map, opt},
@@ -10,15 +10,14 @@ use nom::{
     IResult,
 };
 use std::fmt;
-use string_interner::Sym;
 
 type Res<'input, T> = IResult<&'input [Lex], T>;
 
-fn string_literal(input: &[Lex]) -> Res<Sym> {
+fn string_literal(input: &[Lex]) -> Res<IStr> {
     quoted(input)
 }
 
-fn variable(input: &[Lex]) -> Res<Sym> {
+fn variable(input: &[Lex]) -> Res<IStr> {
     word(input)
 }
 
@@ -88,7 +87,7 @@ fn plus_literal(input: &[Lex]) -> Res<Token> {
 }
 
 /// Matches either `(t1 t2 ... tn)` or `(t1 t2 ... tn)[v1, v2, ... vn]`.
-fn scoped_sentence(input: &[Lex]) -> Res<(Vector<Token>, Vec<Sym>)> {
+fn scoped_sentence(input: &[Lex]) -> Res<(Vector<Token>, Vec<IStr>)> {
     tuple((
         delimited(lexeme(Lex::LParen), sentence, lexeme(Lex::RParen)),
         map(
@@ -142,8 +141,9 @@ fn rule(input: &[Lex]) -> Res<Vec<Rule>> {
     let rules = parsed_rules
         .into_iter()
         .flat_map(|(guard_stmts, sentences)| {
+            let head_ref = &head; // Satisfies the borrow checker.
             sentences.into_iter().map(move |sentence| Rule {
-                head: head.clone(),
+                head: head_ref.clone(),
                 test: guard_stmts.clone(),
                 body: sentence,
             })
@@ -195,10 +195,9 @@ impl<'input> std::error::Error for ParseErr<'input> {}
 
 pub fn parse_grammar<'input>(
     src_txt: &'input str,
-    syms: Syms,
     buf: &'input mut Vec<Lex>,
 ) -> Result<Grammar, ParseErr<'input>> {
-    let mut lexer = Lexer::new(src_txt, syms);
+    let mut lexer = Lexer::new(src_txt);
     let tokens = lexer.to_slice(buf).map_err(ParseErr::TokenizationErr)?;
     let (_rest, grammar) = parse_source(tokens).map_err(ParseErr::GrammaticalErr)?;
     Ok(grammar)
