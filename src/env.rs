@@ -48,10 +48,6 @@ where
         }
     }
 
-    pub fn push_frame(&mut self) {
-        self.frames.push(Default::default());
-    }
-
     pub fn push_frame_and_watch(&mut self, watching: Vec<K>) {
         self.frames.push(Frame {
             map: Default::default(),
@@ -111,7 +107,7 @@ where
 fn extend() {
     let mut env = Env::new();
     env.insert_local("global_1", vec!["G1"]);
-    env.push_frame();
+    env.push_frame_and_watch(vec![]);
     {
         env.insert_local("local_1", vec!["L1"]);
         assert_eq!(env.get(&"global_1"), Some(&vec!["G1"]));

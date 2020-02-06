@@ -1,0 +1,7 @@
+#comment to start
+start --> "blah" foo "bar" #this is a comment pls ignore
+        ;
+
+# comment on line of its own
+foo --> "foo";
+#comment at end

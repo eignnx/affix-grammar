@@ -1,6 +1,7 @@
 mod cli;
 mod env;
 mod gen;
+mod lex;
 mod parse;
 mod syntax;
 

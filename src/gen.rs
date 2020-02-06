@@ -294,16 +294,15 @@ impl TryFrom<&Path> for Generator {
         file.read_to_string(&mut src)?;
 
         let symbol_pool = make_symbol_pool();
-        let parse_res = crate::parse::parse_source(&src, symbol_pool.clone());
+        let mut lexeme_buf = vec![];
+        let parse_res = crate::parse::parse_grammar(&src, symbol_pool.clone(), &mut lexeme_buf);
 
         let grammar = match parse_res {
-            Ok((_, grammar)) => grammar,
-            Err(nom::Err::Error((rest, e))) => {
-                eprintln!("Could not parse source text! Got error: {:?}", e);
-                eprintln!("Parsed up until this point:```\n{}\n```", rest);
+            Ok(grammar) => grammar,
+            Err(e) => {
+                eprintln!("{}", e);
                 std::process::exit(-1);
             }
-            _ => unimplemented!(),
         };
 
         Ok(Self::new(grammar, symbol_pool))

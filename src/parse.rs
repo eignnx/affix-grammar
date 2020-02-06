@@ -1,72 +1,31 @@
 use crate::gen::Syms;
+use crate::lex::{lexeme, quoted, word, Lex, Lexer};
 use crate::syntax::{EvalStmt, Grammar, Rule, TestStmt, Token};
 use im::{vector, Vector};
 use nom::{
     branch::alt,
-    bytes::complete::{escaped, is_not, tag},
-    character::complete::{char, multispace0, multispace1, one_of},
     combinator::{map, opt},
-    eof,
-    multi::{separated_list, separated_nonempty_list},
-    re_find,
+    multi::{many1, separated_list, separated_nonempty_list},
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
     IResult,
 };
+use std::fmt;
 use string_interner::Sym;
 
-fn string_literal(syms: Syms) -> impl Fn(&str) -> IResult<&str, Sym> {
-    move |input| {
-        // See: https://python-reference.readthedocs.io/en/latest/docs/str/escapes.html
-        //
-        // \a           ASCII bell
-        // \b           ASCII backspace
-        // \f           ASCII formfeed
-        // \n           ASCII linefeed
-        // \N{name}     character named NAME in the Unicode database
-        // \r           ASCII carriage return
-        // \t           ASCII horizontal tab
-        // \uxxxx       character with 16-bit hex value XXXX
-        // \Uxxxxxxxx   character with 32-bit hex value XXXXXXXX
-        // \v           ASCII vertical tab
-        // \ooo         character with octal value OOO
-        // \hxx         Character with hex value XX
-        let double_quoted_str_escape = r#"\"abfnNrtuUvx01234567"#;
-        let double_quoted = delimited(
-            char('"'),
-            escaped(is_not(r#""\"#), '\\', one_of(double_quoted_str_escape)),
-            char('"'),
-        );
-        let (rest, content) = double_quoted(input)?;
-        let sym = syms.borrow_mut().get_or_intern(content);
-        Ok((rest, sym))
-    }
+type Res<'input, T> = IResult<&'input [Lex], T>;
+
+fn string_literal(input: &[Lex]) -> Res<Sym> {
+    quoted(input)
 }
 
-#[test]
-fn test_literal() {
-    let syms = crate::gen::make_symbol_pool();
-    let (_, actual) =
-        string_literal(syms.clone())(r#""inside of string""#).expect("parse should succeed");
-    let actual = syms.borrow().resolve(actual).unwrap().to_string();
-    let expected = "inside of string".to_string();
-    assert_eq!(actual, expected);
+fn variable(input: &[Lex]) -> Res<Sym> {
+    word(input)
 }
 
-fn variable(syms: Syms) -> impl Fn(&str) -> IResult<&str, Sym> {
-    move |input| {
-        let (rest, name) = re_find!(input, r"^([a-zA-Z_][a-zA-Z0-9_]*)")?;
-        let sym = syms.borrow_mut().get_or_intern(name);
-        Ok((rest, sym))
-    }
-}
-
-#[test]
-fn test_variable() {
-    let syms = crate::gen::make_symbol_pool();
-    let (_, actual) = variable(syms.clone())("some_symbol").expect("parse should succeed");
-    let actual = syms.borrow().resolve(actual).unwrap().to_string();
-    let expected = "some_symbol".to_string();
-    assert_eq!(actual, expected);
+fn sentence(input: &[Lex]) -> Res<Vector<Token>> {
+    let (rest, vec) = many1(token)(input)?;
+    let vector = vec.into_iter().collect();
+    Ok((rest, vector))
 }
 
 /// Accepts meta-statements like:
@@ -74,34 +33,25 @@ fn test_variable() {
 ///     :x
 ///     !x
 ///     x
-fn eval_stmt(syms: Syms) -> impl Fn(&str) -> IResult<&str, EvalStmt> {
-    move |input| {
-        let key = separated_pair(
-            variable(syms.clone()),
-            tuple((char(':'), multispace0)),
-            token(syms.clone()),
-        );
-        let set = preceded(char(':'), variable(syms.clone()));
-        let unset = preceded(char('!'), variable(syms.clone()));
+fn eval_stmt(input: &[Lex]) -> Res<EvalStmt> {
+    let key = separated_pair(variable, lexeme(Lex::Colon), token);
+    let set = preceded(lexeme(Lex::Colon), variable);
+    let unset = preceded(lexeme(Lex::Bang), variable);
 
-        alt((
-            map(key, |(key, value)| EvalStmt::KeyValue(key, value)),
-            map(set, |key| EvalStmt::FlagSet(key)),
-            map(unset, |key| EvalStmt::FlagUnset(key)),
-        ))(input)
-    }
+    alt((
+        map(key, |(key, value)| EvalStmt::KeyValue(key, value)),
+        map(set, |key| EvalStmt::FlagSet(key)),
+        map(unset, |key| EvalStmt::FlagUnset(key)),
+    ))(input)
 }
 
-fn eval_stmts(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<EvalStmt>> {
-    move |input| {
-        let comma_space = tuple((char(','), multispace0));
-        let (rest, vec) = delimited(
-            tuple((char('{'), multispace0)),
-            separated_list(comma_space, eval_stmt(syms.clone())),
-            tuple((multispace0, char('}'))),
-        )(input)?;
-        Ok((rest, Vector::from(vec)))
-    }
+fn eval_stmts(input: &[Lex]) -> Res<Vector<EvalStmt>> {
+    let (rest, vec) = delimited(
+        lexeme(Lex::LBrace),
+        separated_list(lexeme(Lex::Comma), eval_stmt),
+        lexeme(Lex::RBrace),
+    )(input)?;
+    Ok((rest, Vector::from(vec)))
 }
 
 /// Accepts meta-statements like:
@@ -109,111 +59,57 @@ fn eval_stmts(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<EvalStmt>> {
 ///     x! "y"
 ///     :x
 ///     !x
-fn test_stmt(syms: Syms) -> impl Fn(&str) -> IResult<&str, TestStmt> {
-    move |input| {
-        let key = separated_pair(
-            variable(syms.clone()),
-            tuple((char(':'), multispace0)),
-            string_literal(syms.clone()),
-        );
-        let not_key = separated_pair(
-            variable(syms.clone()),
-            tuple((char('!'), multispace0)),
-            string_literal(syms.clone()),
-        );
-        let set = preceded(char(':'), variable(syms.clone()));
-        let unset = preceded(char('!'), variable(syms.clone()));
+fn test_stmt(input: &[Lex]) -> Res<TestStmt> {
+    let key = separated_pair(variable, lexeme(Lex::Colon), string_literal);
+    let not_key = separated_pair(variable, lexeme(Lex::Bang), string_literal);
+    let set = preceded(lexeme(Lex::Colon), variable);
+    let unset = preceded(lexeme(Lex::Bang), variable);
 
-        alt((
-            map(key, |(key, value)| TestStmt::KeyValue(key, value)),
-            map(not_key, |(key, value)| TestStmt::NotKeyValue(key, value)),
-            map(set, TestStmt::FlagSet),
-            map(unset, TestStmt::FlagUnset),
-        ))(input)
-    }
+    alt((
+        map(key, |(key, value)| TestStmt::KeyValue(key, value)),
+        map(not_key, |(key, value)| TestStmt::NotKeyValue(key, value)),
+        map(set, TestStmt::FlagSet),
+        map(unset, TestStmt::FlagUnset),
+    ))(input)
 }
 
-fn test_stmts(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<TestStmt>> {
-    move |input| {
-        let comma_space = tuple((char(','), multispace0));
-        let (rest, vec) = delimited(
-            tuple((char('{'), multispace0)),
-            separated_list(comma_space, test_stmt(syms.clone())),
-            tuple((multispace0, char('}'))),
-        )(input)?;
-        Ok((rest, Vector::from(vec)))
-    }
+fn test_stmts(input: &[Lex]) -> Res<Vector<TestStmt>> {
+    let (rest, vec) = delimited(
+        lexeme(Lex::LBrace),
+        separated_list(lexeme(Lex::Comma), test_stmt),
+        lexeme(Lex::RBrace),
+    )(input)?;
+    Ok((rest, Vector::from(vec)))
 }
 
 /// Allows the user to write `+` which eats any implicit spaces beside it.
-fn plus_literal(input: &str) -> IResult<&str, Token> {
-    map(char('+'), |_| Token::Plus)(input)
+fn plus_literal(input: &[Lex]) -> Res<Token> {
+    map(lexeme(Lex::Plus), |_| Token::Plus)(input)
 }
 
 /// Matches either `(t1 t2 ... tn)` or `(t1 t2 ... tn)[v1, v2, ... vn]`.
-fn scoped_sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, (Vector<Token>, Vec<Sym>)> {
-    move |input| {
-        let comma_space = tuple((char(','), multispace1));
-        tuple((
-            delimited(
-                char('('),
-                delimited(multispace0, sentence(syms.clone()), multispace0),
-                char(')'),
-            ),
-            map(
-                opt(delimited(
-                    char('['),
-                    separated_list(comma_space, variable(syms.clone())),
-                    char(']'),
-                )),
-                |vars_opt| vars_opt.unwrap_or_default(),
-            ),
-        ))(input)
-    }
+fn scoped_sentence(input: &[Lex]) -> Res<(Vector<Token>, Vec<Sym>)> {
+    tuple((
+        delimited(lexeme(Lex::LParen), sentence, lexeme(Lex::RParen)),
+        map(
+            opt(delimited(
+                lexeme(Lex::LBrack),
+                separated_list(lexeme(Lex::Comma), variable),
+                lexeme(Lex::RBrack),
+            )),
+            |vars_opt| vars_opt.unwrap_or_default(),
+        ),
+    ))(input)
 }
 
-fn token(syms: Syms) -> impl Fn(&str) -> IResult<&str, Token> {
-    move |input| {
-        alt((
-            plus_literal,
-            map(string_literal(syms.clone()), Token::Lit),
-            map(eval_stmts(syms.clone()), Token::Meta),
-            map(scoped_sentence(syms.clone()), |(toks, vars)| {
-                Token::Scoped(toks, vars)
-            }),
-            map(variable(syms.clone()), Token::Var),
-        ))(input)
-    }
-}
-
-fn sentence(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vector<Token>> {
-    move |input| {
-        let (rest, vec) = separated_nonempty_list(multispace1, token(syms.clone()))(input)?;
-        let vector = vec.into_iter().collect();
-        Ok((rest, vector))
-    }
-}
-
-#[test]
-fn test_sentence() {
-    let syms = crate::gen::make_symbol_pool();
-    let resolve = |s| syms.borrow().resolve(s).unwrap().to_string();
-    let (_, actual) = sentence(syms.clone())(r#"x y "lit"   z"#).expect("parse should succeed");
-    let actual = actual
-        .into_iter()
-        .map(|tok| match tok {
-            Token::Var(s) => Token::Var(resolve(s)),
-            Token::Lit(s) => Token::Lit(resolve(s)),
-            _ => unimplemented!(),
-        })
-        .collect::<Vec<_>>();
-    let expected = vec![
-        Token::Var("x".into()),
-        Token::Var("y".into()),
-        Token::Lit("lit".into()),
-        Token::Var("z".into()),
-    ];
-    assert_eq!(actual, expected);
+fn token(input: &[Lex]) -> Res<Token> {
+    alt((
+        plus_literal,
+        map(string_literal, Token::Lit),
+        map(eval_stmts, Token::Meta),
+        map(scoped_sentence, |(toks, vars)| Token::Scoped(toks, vars)),
+        map(variable, Token::Var),
+    ))(input)
 }
 
 /// A rule is specified like this:
@@ -222,56 +118,88 @@ fn test_sentence() {
 ///                  --> subject "hits" object "with a bat."
 ///                  ;
 /// ```
-fn rule(syms: Syms) -> impl Fn(&str) -> IResult<&str, Vec<Rule>> {
-    move |input| {
-        let pipe = delimited(multispace0, char('|'), multispace0);
-        let optional_test = map(opt(test_stmts(syms.clone())), |x| x.unwrap_or(vector![]));
-        let full_arrow = delimited(char('-'), optional_test, tag("->"));
-        let semicolon = preceded(multispace0, char(';'));
+fn rule(input: &[Lex]) -> Res<Vec<Rule>> {
+    let pipe = lexeme(Lex::Pipe);
+    let optional_test = map(opt(test_stmts), |x| x.unwrap_or(vector![]));
+    let arrow = delimited(
+        lexeme(Lex::ArrowStart),
+        optional_test,
+        lexeme(Lex::ArrowEnd),
+    );
+    let semicolon = lexeme(Lex::Semicolon);
 
-        // guarded_rule_group ::= "-{optional_meta_guard}-> sentence | sentence | ... | sentence"
-        let guarded_rule_group = tuple((
-            terminated(full_arrow, multispace0),
-            preceded(
-                opt(&pipe),
-                separated_nonempty_list(&pipe, sentence(syms.clone())),
-            ),
-        ));
+    // guarded_rule_group ::= "-{optional_meta_guard}-> sentence | sentence | ... | sentence"
+    let guarded_rule_group = tuple((
+        arrow,
+        preceded(opt(&pipe), separated_nonempty_list(&pipe, sentence)),
+    ));
 
-        // rule_group ::= "variable guarded_rule_group guarded_rule_group ... guarded_rule_group ;"
-        let rule_group = terminated(
-            tuple((
-                terminated(variable(syms.clone()), multispace0),
-                separated_nonempty_list(multispace1, guarded_rule_group),
-            )),
-            semicolon,
-        );
+    // rule_group ::= "variable guarded_rule_group guarded_rule_group ... guarded_rule_group ;"
+    let rule_group = terminated(tuple((variable, many1(guarded_rule_group))), semicolon);
 
-        let (rest, (head, parsed_rules)) = rule_group(input)?;
+    let (rest, (head, parsed_rules)) = rule_group(input)?;
 
-        let rules = parsed_rules
-            .into_iter()
-            .flat_map(|(guard_stmts, sentences)| {
-                sentences.into_iter().map(move |sentence| Rule {
-                    head: head.clone(),
-                    test: guard_stmts.clone(),
-                    body: sentence,
-                })
+    let rules = parsed_rules
+        .into_iter()
+        .flat_map(|(guard_stmts, sentences)| {
+            sentences.into_iter().map(move |sentence| Rule {
+                head: head.clone(),
+                test: guard_stmts.clone(),
+                body: sentence,
             })
-            .collect();
+        })
+        .collect();
 
-        Ok((rest, rules))
+    Ok((rest, rules))
+}
+
+pub fn parse_source(input: &[Lex]) -> Res<Grammar> {
+    let rules = terminated(many1(rule), lexeme(Lex::Eof));
+    let (rest, rules_unflattened) = rules(input)?;
+    let rules = rules_unflattened.into_iter().flatten().collect();
+    Ok((rest, Grammar { rules }))
+}
+
+#[derive(Debug)]
+pub enum ParseErr<'input> {
+    TokenizationErr(nom::Err<(&'input str, nom::error::ErrorKind)>),
+    GrammaticalErr(nom::Err<(&'input [Lex], nom::error::ErrorKind)>),
+}
+
+impl<'input> fmt::Display for ParseErr<'input> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TokenizationErr(nom::Err::Error((rest, e))) => {
+                writeln!(f, "Tokenization error: {:?}", e)?;
+                writeln!(f, "Error just before: ```\n{}\n```", rest)?;
+            }
+            Self::TokenizationErr(nom::Err::Failure((rest, e))) => {
+                writeln!(f, "Tokenization failure: {:?}", e)?;
+                writeln!(f, "Failed just before: ```\n{}\n```", rest)?;
+            }
+            Self::GrammaticalErr(nom::Err::Error((rest, e))) => {
+                writeln!(f, "Grammatical error: {:?}", e)?;
+                writeln!(f, "Error just before: ```\n{:?}\n```", rest)?;
+            }
+            Self::GrammaticalErr(nom::Err::Failure((rest, e))) => {
+                writeln!(f, "Grammatical failure: {:?}", e)?;
+                writeln!(f, "Failed just before: ```\n{:?}\n```", rest)?;
+            }
+            _ => unimplemented!("Some other kind of error"),
+        }
+        Ok(())
     }
 }
 
-pub fn parse_source(src: &str, syms: Syms) -> IResult<&str, Grammar> {
-    let input = src;
-    let rules = separated_nonempty_list(multispace1, rule(syms));
-    let src_file = preceded(
-        multispace0,
-        terminated(terminated(rules, multispace0), |input: &str| eof!(input,)),
-    );
-    let (rest, rules_unflattened) = src_file(input)?;
-    let rules = rules_unflattened.into_iter().flatten().collect();
-    Ok((rest, Grammar { rules }))
+impl<'input> std::error::Error for ParseErr<'input> {}
+
+pub fn parse_grammar<'input>(
+    src_txt: &'input str,
+    syms: Syms,
+    buf: &'input mut Vec<Lex>,
+) -> Result<Grammar, ParseErr<'input>> {
+    let mut lexer = Lexer::new(src_txt, syms);
+    let tokens = lexer.to_slice(buf).map_err(ParseErr::TokenizationErr)?;
+    let (_rest, grammar) = parse_source(tokens).map_err(ParseErr::GrammaticalErr)?;
+    Ok(grammar)
 }
