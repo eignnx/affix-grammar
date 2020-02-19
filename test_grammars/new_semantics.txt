@@ -24,6 +24,6 @@ rule they.Gender.Number =
         .feminine -> "she"
         .nonbinary -> "they"
     }
-    .plural.* -> "they"
+    .plural -> "they"
 
 rule dog_name = "toby" | "miles" | "millie" | "quincy"

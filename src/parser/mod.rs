@@ -8,37 +8,37 @@ use nom::{
     IResult,
 };
 use std::collections::HashSet;
-mod lex;
+pub mod lex;
 use lex::{ident, keyword, lexeme, quoted, Kw, Lex};
 
 /// The name of a rule.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RuleName(IStr);
+pub struct RuleName(pub IStr);
 
 /// A variable that represents a data variant.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DataVariable(IStr);
+pub struct DataVariable(pub IStr);
 
 /// The name of a data-type.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DataName(IStr);
+pub struct DataName(pub IStr);
 
 /// The name of a variant of a data-type.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DataVariant(IStr);
+pub struct DataVariant(pub IStr);
 
 /// The "call site" of a rule. Includes variables that should be referenced inside the call.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleRef {
-    rule: RuleName,
-    vars: Vec<DataVariable>,
+    pub rule: RuleName,
+    pub vars: Vec<DataVariable>,
 }
 
 /// The type signature of a rule.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleSig {
-    name: RuleName,
-    parameter_types: Vec<DataName>,
+    pub name: RuleName,
+    pub parameter_types: Vec<DataName>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,13 +52,13 @@ pub type SententialForm = Vector<Token>;
 
 #[derive(Debug, PartialEq)]
 pub struct DataDecl {
-    name: IStr,
-    variants: HashSet<IStr>,
+    pub name: IStr,
+    pub variants: HashSet<IStr>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Guard {
-    requirements: Vector<DataVariant>,
+    pub requirements: Vector<DataVariant>,
 }
 
 impl Guard {
@@ -69,20 +69,20 @@ impl Guard {
 
 #[derive(Debug, PartialEq)]
 pub struct RuleBody {
-    guard: Guard,
-    sentential_form: SententialForm,
+    pub guard: Guard,
+    pub sentential_form: SententialForm,
 }
 
 #[derive(Debug, PartialEq)]
 pub struct RuleDecl {
-    signature: RuleSig,
-    bodies: Vec<RuleBody>,
+    pub signature: RuleSig,
+    pub bodies: Vec<RuleBody>,
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Grammar {
-    data_decls: Vec<DataDecl>,
-    rule_decls: Vec<RuleDecl>,
+    pub data_decls: Vec<DataDecl>,
+    pub rule_decls: Vec<RuleDecl>,
 }
 
 type Res<'a, T> = IResult<&'a [Lex], T>;
@@ -203,12 +203,20 @@ fn nested_guard_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleB
     }
 }
 
+fn guarded_rule_body(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
+    move |input| {
+        alt((
+            guard_arrow_rule_body(guard.clone()),
+            nested_guard_rule_body(guard.clone()),
+        ))(input)
+    }
+}
+
 fn rule_bodies(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
     move |input| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
         let (rest, bodies) = alt((
-            map(many1(guard_arrow_rule_body(guard.clone())), flatten),
-            map(many1(nested_guard_rule_body(guard.clone())), flatten),
+            map(many1(guarded_rule_body(guard.clone())), flatten),
             sentential_form_alternatives(guard.clone()),
         ))(input)?;
         Ok((rest, bodies))

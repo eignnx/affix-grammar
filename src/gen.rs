@@ -1,5 +1,6 @@
 use crate::env::Env;
-use crate::syntax::{EvalStmt, Grammar, Rule, TestStmt, Token};
+use crate::parser::lex::Lexer;
+use crate::parser::{DataVariant, Grammar, RuleBody, RuleName, RuleRef, Token};
 use im::{vector, Vector};
 use internship::IStr;
 use rand::Rng;
@@ -12,43 +13,43 @@ use std::{
     path::Path,
 };
 
-type State = Env<IStr, Vector<OutputSym>>;
+type State = Env<IStr, Vector<OutToken>>;
 
 pub struct Generator {
     grammar: Grammar,
     rng: RefCell<rand::rngs::ThreadRng>,
-    seen_sentences: HashSet<im::Vector<OutputSym>>,
+    seen_sentences: HashSet<im::Vector<OutToken>>,
     pub(crate) max_trials: usize,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-enum OutputSym {
+enum OutToken {
     Sym(IStr),
     Plus, // For concatenation without space insertion.
 }
 
-impl From<OutputSym> for Token {
-    fn from(output_sym: OutputSym) -> Self {
-        match output_sym {
-            OutputSym::Sym(sym) => Token::Lit(sym),
-            OutputSym::Plus => Token::Plus,
+impl From<OutToken> for Token {
+    fn from(out_token: OutToken) -> Self {
+        match out_token {
+            OutToken::Sym(sym) => Token::StrLit(sym),
+            OutToken::Plus => Token::Plus,
         }
     }
 }
 
-impl From<&OutputSym> for Token {
-    fn from(output_sym: &OutputSym) -> Self {
-        output_sym.clone().into()
+impl From<&OutToken> for Token {
+    fn from(out_token: &OutToken) -> Self {
+        out_token.clone().into()
     }
 }
 
-impl From<IStr> for OutputSym {
+impl From<IStr> for OutToken {
     fn from(sym: IStr) -> Self {
         Self::Sym(sym)
     }
 }
 
-impl From<&IStr> for OutputSym {
+impl From<&IStr> for OutToken {
     fn from(sym: &IStr) -> Self {
         Self::Sym(sym.clone())
     }
@@ -66,76 +67,21 @@ impl Generator {
         }
     }
 
-    fn symbol_eq_sentence(&self, sym: IStr, sentence: &Vector<OutputSym>) -> bool {
+    fn symbol_eq_sentence(&self, sym: IStr, sentence: &Vector<OutToken>) -> bool {
         let joined = self.join_symbols(sentence.iter());
         joined == sym.as_str()
     }
 
-    fn test(&self, stmt: &TestStmt, state: &State) -> bool {
-        match stmt {
-            TestStmt::KeyValue(key, value) => {
-                if let Some(stored) = state.get(key) {
-                    self.symbol_eq_sentence(value.clone(), stored)
-                } else {
-                    false
-                }
-            }
-            TestStmt::NotKeyValue(key, value) => {
-                if let Some(stored) = state.get(&key) {
-                    !self.symbol_eq_sentence(value.clone(), stored)
-                } else {
-                    true
-                }
-            }
-            // Note: `{:foo}` tests that state contains some binding for `foo`,
-            // not that state contains the binding `foo => foo`.
-            TestStmt::FlagSet(key) => state.contains_key(&key),
-            TestStmt::FlagUnset(key) => !state.contains_key(&key),
-        }
-    }
-
-    fn eval(&self, stmt: &EvalStmt, state: &mut State) {
-        match stmt {
-            EvalStmt::KeyValue(key, Token::Lit(sym)) => {
-                state.insert_local(key.clone(), vector![sym.into()]);
-            }
-            EvalStmt::KeyValue(key, Token::Plus) => {
-                state.insert_local(key.clone(), vector![OutputSym::Plus]);
-            }
-            EvalStmt::KeyValue(key, Token::Var(sym)) => {
-                let sentence = self.generate_non_unique_from_start(sym.clone(), state);
-                state.insert_local(key.clone(), sentence);
-            }
-            EvalStmt::KeyValue(_, Token::Meta(_)) => {
-                unimplemented!("What would this even mean?");
-            }
-            EvalStmt::KeyValue(key, Token::Scoped(sentence, watch_vars)) => {
-                state.push_frame_and_watch(watch_vars.clone());
-                let generated = self.generate_non_unique_from_sentence(sentence.clone(), state);
-                state.pop_frame();
-                state.insert_local(key.clone(), generated);
-            }
-            EvalStmt::FlagSet(key) => {
-                let _ = state.insert_local(key.clone(), vector![OutputSym::Sym(key.clone())]);
-            }
-            EvalStmt::FlagUnset(key) => {
-                if state.get(key).is_some() {
-                    state.remove(key);
-                }
-            }
-        }
-    }
-
-    fn choose_rule(&self, sym: IStr, state: &State) -> Option<&Rule> {
+    fn choose_rule(&self, rule_name: &RuleName, state: &State) -> Option<&RuleBody> {
         // Collect all rules that *could* expand `token`.
-        let mut possibilities = self
+        let mut possibilities: Vec<&RuleBody> = self
             .grammar
-            .rules
+            .rule_decls
             .iter()
-            .filter(|rule| rule.head == sym)
-            // Theoretically, we're performing this filter down in the `while` loop below.
-            // .filter(|rule| rule.pred.iter().all(|stmt| stmt.test(state)))
-            .collect::<Vec<_>>();
+            .filter(|rule_decl| &rule_decl.signature.name == rule_name)
+            .map(|rule_decl| &rule_decl.bodies)
+            .flatten()
+            .collect();
 
         // Keep picking random rules until one is found which satisfies it's guard conditions.
         loop {
@@ -144,7 +90,12 @@ impl Generator {
             }
             let idx = self.rng.borrow_mut().gen_range(0, possibilities.len());
             let rule = possibilities[idx];
-            if rule.test.iter().all(|stmt| self.test(stmt, state)) {
+            if rule
+                .guard
+                .requirements
+                .iter()
+                .all(|req| self.allowable(req, state))
+            {
                 return Some(rule);
             } else {
                 possibilities.swap_remove(idx);
@@ -152,9 +103,22 @@ impl Generator {
         }
     }
 
-    fn generate_non_unique_from_start(&self, start: IStr, state: &mut State) -> Vector<OutputSym> {
-        let sentence = vector![Token::Var(start)];
-        self.generate_non_unique_from_sentence(sentence, state)
+    fn allowable(&self, value: &DataVariant, state: &State) -> bool {
+        // TODO: impl this
+        true
+    }
+
+    fn generate_non_unique_from_start(
+        &self,
+        start: RuleName,
+        state: &mut State,
+    ) -> Vector<OutToken> {
+        let start_call = RuleRef {
+            rule: start,
+            vars: vec![],
+        };
+        let start_sentence = vector![Token::RuleRef(start_call)];
+        self.generate_non_unique_from_sentence(start_sentence, state)
     }
 
     /// Psuedo-code:
@@ -170,49 +134,32 @@ impl Generator {
         &self,
         sentence: Vector<Token>,
         state: &mut State,
-    ) -> Vector<OutputSym> {
-        let mut new_sentence: Vector<OutputSym> = Default::default();
+    ) -> Vector<OutToken> {
+        let mut new_sentence: Vector<OutToken> = Default::default();
 
         // For each token, if it's a variable, it needs to be replaced.
         for token in sentence {
             match token {
-                Token::Lit(sym) => new_sentence.push_back(sym.into()),
-                Token::Plus => new_sentence.push_back(OutputSym::Plus),
-                Token::Var(ref sym) => {
+                Token::StrLit(sym) => new_sentence.push_back(sym.into()),
+                Token::Plus => new_sentence.push_back(OutToken::Plus),
+                Token::RuleRef(RuleRef { ref rule, ref vars }) => {
                     // more_to_do = true; // We'll have to revisit.
 
-                    // First, check to see if the name is in the state map.
-                    // If `sym` is bound in the state map, convert it's
-                    // `Vector` of `OutputSym`s into `Token`s and append
-                    // them onto `new_sentence.
-                    // If it's not in there, search the grammar's rules
-                    // via `self.choose_rule`.
-                    // Finally, if it's in neither, panic.
-                    let tokens_to_add: Vector<OutputSym> = state
-                        .get(&sym)
-                        .map(Clone::clone)
-                        .or_else(|| {
-                            let rule = self.choose_rule(sym.clone(), &state)?;
-                            let next_sentence = rule.body.clone();
-                            Some(self.generate_non_unique_from_sentence(next_sentence, state))
-                        })
-                        .unwrap_or_else(|| {
-                            panic!("oops, `{}` does not match any known rule!", sym);
+                    // Search the grammar's rules via `self.choose_rule`.
+                    // If no rule bodies are viable, panic.
+                    state.push_frame_and_watch(vec![]);
+                    // TODO: impl this!
+                    // state.insert_local(key: K, value: V);
+                    let tokens_to_add: Vector<OutToken> = {
+                        let rule = self.choose_rule(rule, &state).unwrap_or_else(|| {
+                            panic!("The identifier `{}` is not the name of a rule!", rule.0);
                         });
+                        let next_sentence = rule.sentential_form.clone();
+                        self.generate_non_unique_from_sentence(next_sentence, state)
+                    };
+                    state.pop_frame();
 
                     new_sentence.append(tokens_to_add);
-                }
-                Token::Meta(stmts) => {
-                    for stmt in &stmts {
-                        self.eval(stmt, state);
-                    }
-                }
-                Token::Scoped(sentence, watch_vars) => {
-                    state.push_frame_and_watch(watch_vars.clone());
-                    self.generate_non_unique_from_sentence(sentence.clone(), state)
-                        .into_iter()
-                        .for_each(|sym| new_sentence.push_back(sym.into()));
-                    state.pop_frame();
                 }
             }
         }
@@ -224,28 +171,28 @@ impl Generator {
     /// insert a space character. If there is a `Plus` before a `Sym`, don't
     /// insert the space. If it's at the beginning of the iterator, don't insert
     /// a space.
-    fn join_symbols<'it>(&self, syms: impl Iterator<Item = &'it OutputSym> + 'it) -> String {
+    fn join_symbols<'it>(&self, syms: impl Iterator<Item = &'it OutToken> + 'it) -> String {
         let (lower_bound, _upper) = syms.size_hint();
         let mut text = String::with_capacity(lower_bound);
         let mut add_joining_space = false;
 
         for sym in syms {
             match sym {
-                OutputSym::Sym(sym) => {
+                OutToken::Sym(sym) => {
                     if add_joining_space {
                         text.push(' ');
                     }
                     text.push_str(sym.as_str());
                     add_joining_space = true;
                 }
-                OutputSym::Plus => add_joining_space = false,
+                OutToken::Plus => add_joining_space = false,
             }
         }
         text
     }
 
     pub fn generate(&mut self) -> Option<String> {
-        let start = IStr::new("start");
+        let start = RuleName(IStr::new("start"));
         let mut trials = 0;
         loop {
             let sentence = self.generate_non_unique_from_start(start.clone(), &mut Env::new());
@@ -270,13 +217,15 @@ impl TryFrom<&Path> for Generator {
         let mut file = fs::File::open(path)?;
         file.read_to_string(&mut src)?;
 
+        let mut lexer = Lexer::from(src.as_ref());
         let mut lexeme_buf = vec![];
-        let parse_res = crate::parse::parse_grammar(&src, &mut lexeme_buf);
+        lexer.to_slice(&mut lexeme_buf).expect("BAD TOKENIZEATION");
+        let parse_res = crate::parser::parse_from_lex_stream(&lexeme_buf);
 
         let grammar = match parse_res {
-            Ok(grammar) => grammar,
+            Ok((_rest, grammar)) => grammar,
             Err(e) => {
-                eprintln!("{}", e);
+                eprintln!("Error encountered while parsing: {}", e);
                 std::process::exit(-1);
             }
         };
