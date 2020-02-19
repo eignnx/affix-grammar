@@ -1,0 +1,29 @@
+data Gender = masculine | feminine | nonbinary
+data Person = 1st | 2nd | 3rd
+data Number = singular | plural
+
+
+rule want.Number.Person =
+    .singular {
+        .1st -> "veux"
+        .2nd -> "veux"
+        .3rd -> "veut"
+    }
+    .plural {
+        .1st -> "voulons"
+        .2nd -> "voulez"
+        .3rd -> "voulent"
+    }
+
+rule start =
+    they.G1.N1 "said to" themself.G1.N1 "'" + they.G2.N2 are.G2.N2 "mean.'"
+
+rule they.Gender.Number =
+    .singular {
+        .masculine -> "he"
+        .feminine -> "she"
+        .nonbinary -> "they"
+    }
+    .plural.* -> "they"
+
+rule dog_name = "toby" | "miles" | "millie" | "quincy"

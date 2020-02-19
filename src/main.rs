@@ -3,6 +3,7 @@ mod env;
 mod gen;
 mod lex;
 mod parse;
+mod parser;
 mod syntax;
 
 use gen::Generator;
