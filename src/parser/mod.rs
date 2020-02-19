@@ -1,4 +1,4 @@
-use im::{vector, Vector};
+use im::Vector;
 use internship::IStr;
 use nom::{
     branch::alt,
@@ -9,7 +9,7 @@ use nom::{
 };
 use std::collections::HashSet;
 mod lex;
-use lex::{ident, keyword, lexeme, quoted, Kw, Lex, Lexer};
+use lex::{ident, keyword, lexeme, quoted, Kw, Lex};
 
 /// The name of a rule.
 #[derive(Debug, Clone, PartialEq)]
@@ -101,6 +101,9 @@ fn data_decl(input: &[Lex]) -> Res<DataDecl> {
 
 #[test]
 fn parse_data_decl() {
+    use lex::Lexer;
+    use std::iter::FromIterator;
+
     let src = "data Number = singular | plural";
     let mut lexer = Lexer::from(src);
     let mut buf = vec![];
@@ -249,6 +252,9 @@ pub fn parse_from_lex_stream(input: &[Lex]) -> Res<Grammar> {
 
 #[test]
 fn parse_decl() {
+    use im::vector;
+    use lex::Lexer;
+
     let src = r#"
     data Number = singular | plural
 
