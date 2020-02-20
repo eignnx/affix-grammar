@@ -1,5 +1,0 @@
-start --> "foo" other;
-
-other --> "bar"
-        | "baz" start
-        ;

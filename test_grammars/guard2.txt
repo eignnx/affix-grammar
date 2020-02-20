@@ -1,16 +1,15 @@
-start -{ gender: "m" }-> noun_phrase
-      -{ gender: "f" }-> noun_phrase
-      ;
+data Gender = masculine | feminine | nonbinary
 
-noun_phrase --> name " est " adj + ".";
+rule start = noun_phrase
 
-name -{gender: "m"}-> "Bob";
-name -{gender: "f"}-> "Sally";
+rule noun_phrase = name.Gender1 "est" adj.Gender1 + "."
 
-adj -{ gender: "m" }-> "gentil";
-adj -{ gender: "f" }-> "gentille";
+rule name.Gender =
+    .masculine -> "Bob"
+    .feminine -> "Sally"
+    .nonbinary -> "Jesse"
 
-article -{ plurality: "p" }-> "les"
-        -{ plurality: "s", gender: "m" }-> "le"
-        -{ plurality: "s", gender: "f" }-> "la"
-        ;
+rule adj.Gender =
+    .masculine -> "gentil"
+    .feminine -> "gentille"
+    .nonbinary -> "kind"

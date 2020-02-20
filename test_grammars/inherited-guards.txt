@@ -1,13 +1,16 @@
-start --> "Je vais" to_place + ".";
+data Number = singular | plural
+data Gender = masculine | feminine | nonbinary
 
-to_place --> "en" place
-           | {:plur} "aux" place
+rule start = "Je vais" to_place + "."
+
+rule to_place = "en" place
+           | "aux" place.plural
            | {:definite, gender: "m"} "au" place
            | {:definite, gender: "f"} "a la" place
            | {!definite} "en" place
            ;
 
-place -{:plur}-> "États-Unis" | "toilettes"
+rule place -{:plur}-> "États-Unis" | "toilettes"
       -{!plur, :definite, gender: "m"}-> "Mexique" | "Japon" | "Canada"
       -{!plur, !definite}-> "France" | "Angleterre"
       -{!plur, gender: "m"}-> "magasin" | "supermarché" | "restaurant"

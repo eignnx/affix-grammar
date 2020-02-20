@@ -16,15 +16,26 @@ use lex::{ident, keyword, lexeme, quoted, Kw, Lex};
 pub struct RuleName(pub IStr);
 
 /// A variable that represents a data variant.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataVariable(pub IStr);
 
 /// The name of a data-type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataName(pub IStr);
 
+impl DataName {
+    /// Performs an equality check with a `DataVariable` since a `DataVariable`
+    /// can have a numeric suffix to distinguish it.
+    pub fn matches_variable(&self, variable: &DataVariable) -> bool {
+        let DataVariable(var_txt) = variable;
+        let var_without_nums = var_txt.as_str().trim_end_matches(char::is_numeric);
+        let DataName(name) = self;
+        name.as_str() == var_without_nums
+    }
+}
+
 /// The name of a variant of a data-type.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataVariant(pub IStr);
 
 /// The "call site" of a rule. Includes variables that should be referenced inside the call.
@@ -52,8 +63,8 @@ pub type SententialForm = Vector<Token>;
 
 #[derive(Debug, PartialEq)]
 pub struct DataDecl {
-    pub name: IStr,
-    pub variants: HashSet<IStr>,
+    pub name: DataName,
+    pub variants: HashSet<DataVariant>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -67,7 +78,7 @@ impl Guard {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RuleBody {
     pub guard: Guard,
     pub sentential_form: SententialForm,
@@ -93,8 +104,8 @@ fn data_decl(input: &[Lex]) -> Res<DataDecl> {
     let (rest, _) = lexeme(Lex::Equals)(rest)?;
     let (rest, variants) = separated_nonempty_list(lexeme(Lex::Pipe), ident)(rest)?;
     let decl = DataDecl {
-        name,
-        variants: variants.iter().map(|s| IStr::new(s)).collect(),
+        name: DataName(name),
+        variants: variants.iter().map(|s| DataVariant(IStr::new(s))).collect(),
     };
     Ok((rest, decl))
 }
@@ -111,8 +122,11 @@ fn parse_data_decl() {
     let (rest, parsed) = data_decl(input).expect("successful parse");
     assert_eq!(rest, &[Lex::Eof]);
     let decl = DataDecl {
-        name: IStr::new("Number"),
-        variants: HashSet::from_iter(vec![IStr::new("singular"), IStr::new("plural")]),
+        name: DataName(IStr::new("Number")),
+        variants: HashSet::from_iter(vec![
+            DataVariant(IStr::new("singular")),
+            DataVariant(IStr::new("plural")),
+        ]),
     };
     assert_eq!(parsed, decl);
 }
@@ -290,9 +304,10 @@ fn parse_decl() {
 
     let expected = Grammar {
         data_decls: vec![DataDecl {
-            name: IStr::new("Number"),
+            name: DataName(IStr::new("Number")),
             variants: vec![IStr::new("singular"), IStr::new("plural")]
                 .into_iter()
+                .map(DataVariant)
                 .collect(),
         }],
         rule_decls: vec![RuleDecl {

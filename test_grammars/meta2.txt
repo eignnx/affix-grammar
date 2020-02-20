@@ -1,1 +1,0 @@
-start --> { y: "boo" } "foo " { x: "x", y, y! "boo" } "bar " { x } { y } ".";
