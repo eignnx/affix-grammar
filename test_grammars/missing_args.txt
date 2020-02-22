@@ -1,0 +1,34 @@
+data A = a
+data B = b
+
+rule start
+    = foo.*              # valid: foo.* == foo.$1.$2.$3.$3.$5
+    | foo.A.*            # valid: foo.A.$1.$2.$3.$4
+    | foo.A1.A2.*        # valid: foo.A1.A1.$1.$2.$3
+    | foo.A1.A2.B.*      # valid: foo.A1.A2.B.$1.$2
+    | foo.A1.A2.B1.B2.*  # valid: foo.A1.A2.B1.B2.$1
+    | foo.A1.A2.B1.B2.A3 # valid: foo.a.a.b.b.a
+    | foo.B              # error
+    | foo.*.B.B.A        # valid: foo.$1.$2.B.B.A
+
+# Does bar.Q.Q == bar.Q1.Q2 or does bar.Q.Q == bar.Q1.Q1 ?
+
+rule foo.A.A.B.B.A
+
+
+
+data Food = fries | apple_sauce | salad | spaghetti
+data Method = fried | dehydrated | baked
+data Topping = cherry | sprinkles
+data Container = plate | bowl | cone
+
+rule meal.Food.Method.Topping.Container.Food.Method.Topping.Container =
+    "dehydrated fries with sprinkles on top served in a cone with a side of"
+    "baked salad with a cherry on top served in a bowl"
+
+rule describe_meal
+    = meal # Totally random meal.
+    | meal.fries # A meal with a 'fries' entree, everything else random.
+    | meal.?.?.cherry # Entree must have cherry topping.
+    | meal.F?.M?.Topping1.C?.F?.M?.Topping1.C?
+    | meal.*

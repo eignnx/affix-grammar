@@ -139,18 +139,27 @@ impl Generator {
         state: &'st mut State,
     ) -> &'st mut DataVariant {
         let choose_random = || {
-            self.grammar
+            let mut iter = self
+                .grammar
                 .data_decls
                 .iter()
-                .filter(|decl| decl.name.matches_variable(var))
-                .map(|decl| {
-                    decl.variants
-                        .iter()
-                        .choose(&mut *self.rng.borrow_mut())
-                        .expect("no data decl has 0 variants")
-                })
+                .filter(|decl| decl.name.matches_variable(var));
+            let res = iter
                 .next()
-                .unwrap()
+                .expect(&format!("a rule matching {:?} exists", var));
+            let more = iter.next();
+            assert_eq!(
+                more,
+                None,
+                "Ambiguous variable name {:?}! Could refer to either {:?} or {:?}",
+                var,
+                res.name,
+                more.unwrap().name
+            );
+            res.variants
+                .iter()
+                .choose(&mut *self.rng.borrow_mut())
+                .expect("no data decl has 0 variants")
                 .clone()
         };
         state.entry(var.clone()).or_insert(choose_random())

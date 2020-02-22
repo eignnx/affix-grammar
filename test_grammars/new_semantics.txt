@@ -1,29 +1,37 @@
-data Gender = masculine | feminine | nonbinary
-data Person = 1st | 2nd | 3rd
 data Number = singular | plural
-
-
-rule want.Number.Person =
-    .singular {
-        .1st -> "veux"
-        .2nd -> "veux"
-        .3rd -> "veut"
-    }
-    .plural {
-        .1st -> "voulons"
-        .2nd -> "voulez"
-        .3rd -> "voulent"
-    }
+data Gender = masculine | feminine | nonbinary
 
 rule start =
-    they.G1.N1 "said to" themself.G1.N1 "'" + they.G2.N2 are.G2.N2 "mean.'"
+    they.N1.G1 "said to" themself.N1.G1 "'" + they.N2.G2 are.N2.G2 "mean.'"
 
-rule they.Gender.Number =
+rule they.Number.Gender =
     .singular {
         .masculine -> "he"
         .feminine -> "she"
         .nonbinary -> "they"
     }
-    .plural -> "they"
+    .plural {
+        .masculine -> "they"
+        .feminine -> "they"
+        .nonbinary -> "they"
+    }
 
-rule dog_name = "toby" | "miles" | "millie" | "quincy"
+rule themself.Number.Gender =
+    .singular {
+        .masculine -> "himself"
+        .feminine -> "herself"
+        .nonbinary -> "themself"
+    }
+    .plural {
+        .masculine -> "themselves"
+        .feminine -> "themselves"
+        .nonbinary -> "themselves"
+    }
+
+rule are.Number.Gender =
+    .singular.masculine -> "is"
+    .singular.feminine -> "is"
+    .singular.nonbinary -> "are"
+    .plural.masculine -> "are"
+    .plural.feminine -> "are"
+    .plural.nonbinary -> "are"

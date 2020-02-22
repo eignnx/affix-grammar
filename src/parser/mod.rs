@@ -30,7 +30,7 @@ impl DataName {
         let DataVariable(var_txt) = variable;
         let var_without_nums = var_txt.as_str().trim_end_matches(char::is_numeric);
         let DataName(name) = self;
-        name.as_str() == var_without_nums
+        name.as_str().starts_with(var_without_nums)
     }
 }
 
