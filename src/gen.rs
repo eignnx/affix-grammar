@@ -91,29 +91,19 @@ impl Generator {
             .rule_decls
             .iter()
             .filter(|rule_decl| &rule_decl.signature.name == rule_name)
-            .next()
+            .next() // TODO: Should this *only* return the first-found rule decl?
             .ok_or(ChoiceErr::UnboundRuleName)?;
 
-        let mut possibilities: Vec<_> = rule.bodies.clone();
-
-        // Keep picking random rules until one is found which satisfies it's guard conditions.
-        loop {
-            if possibilities.is_empty() {
-                // We are out of possibilities. This case must not have been handled in the case analysis.
-                return Err(ChoiceErr::InexhaustivePattern);
-            }
-            let idx = self.rng.borrow_mut().gen_range(0, possibilities.len());
-            let body = &possibilities[idx];
-            if self.allowable(
-                &rule.signature.parameter_types,
-                &body.guard.requirements,
-                arguments,
-            ) {
-                return Ok(body.clone());
-            } else {
-                possibilities.swap_remove(idx);
+        // Check each case (body) one after another until an allowable case is found.
+        for case in &rule.bodies {
+            let param_typs = &rule.signature.parameter_types;
+            let reqs = &case.guard.requirements;
+            if self.allowable(&param_typs, reqs, arguments) {
+                return Ok(case.clone());
             }
         }
+        // We are out of possibilities. This case must not have been handled in the case analysis.
+        Err(ChoiceErr::InexhaustivePattern)
     }
 
     fn allowable(
@@ -122,12 +112,13 @@ impl Generator {
         requirements: &Vec<Pattern>,
         arguments: &Vec<DataVariant>,
     ) -> bool {
-        // TODO: add type checking here?
+        // TODO: add type checking here? When ready, use the currently-unused `_types` parameter.
         if requirements.len() != arguments.len() {
             // TODO: how should we handle missing types?
             //       Is `foo.X1.Y1` == `foo.X1` == `foo`?
+            // TODO: add better context to this error i.e. what rule name? where was it called?
             panic!(
-                "Wrong number of variables! Got values {:?} but needed {} values!",
+                "Wrong number of arguments! Got values {:?} but needed {} values!",
                 arguments,
                 requirements.len()
             );
@@ -147,13 +138,13 @@ impl Generator {
     /// that variable, returns the `DataVariant` bound to the variable. If no
     /// binding yet exists, this fn randomly selects a `DataVariant` from the
     /// `DataDecl`'s listed variants, creates a new binding in the state, and
-    /// reutrns the randomly selected `DataVariant`.
+    /// returns the randomly selected `DataVariant`.
     fn value_of_variable<'st>(
         &self,
         var: &DataVariable,
         state: &'st mut State,
     ) -> &'st mut DataVariant {
-        let choose_random = || {
+        state.entry(var.clone()).or_insert_with(|| {
             let mut iter = self
                 .grammar
                 .data_decls
@@ -176,8 +167,7 @@ impl Generator {
                 .choose(&mut *self.rng.borrow_mut())
                 .expect("no data decl has 0 variants")
                 .clone()
-        };
-        state.entry(var.clone()).or_insert(choose_random())
+        })
     }
 
     fn generate_non_unique_from_start(&self, start: RuleName) -> Vector<OutToken> {
@@ -189,15 +179,6 @@ impl Generator {
         self.generate_non_unique_from_sentence(start_sentence)
     }
 
-    /// Psuedo-code:
-    /// Start with the start symbol. Call this `sentence`.
-    /// Repeat until there are no non-terminals in `sentence`:
-    ///     For each token in the sentence:
-    ///         If it's a literal, keep it.
-    ///         If it's a non-terminal:
-    ///             Collect each rule that the non-terminal matches against.
-    ///             Select one of those rules at random.
-    ///             Append it's body onto the new sentence.
     fn generate_non_unique_from_sentence(&self, sentence: Vector<Token>) -> Vector<OutToken> {
         let mut state = HashMap::new();
         let mut new_sentence: Vector<OutToken> = Default::default();
@@ -209,12 +190,14 @@ impl Generator {
                 Token::Plus => new_sentence.push_back(OutToken::Plus),
                 Token::RuleRef(RuleRef { ref rule, ref vars }) => {
                     // Ensure each of `vars` has a binding.
-                    let arguments: Vec<_> = vars
+                    let arguments: Vec<DataVariant> = vars
                         .iter()
                         .map(|arg| match arg {
+                            // This is a case like `they.Number` where a variable is being passed in.
                             Argument::Variable(var) => {
                                 self.value_of_variable(var, &mut state).clone()
                             }
+                            // This is a case like `they.singular` where a data-variant is being passed in.
                             Argument::Variant(val) => val.clone(),
                         })
                         .collect();
