@@ -18,7 +18,8 @@ pub enum Kw {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Lex {
     KeyWord(Kw),
-    Ident(IStr),
+    LowerIdent(IStr),
+    UpperIdent(IStr),
     Quoted(IStr),
     Arrow,
     Equals,
@@ -31,6 +32,7 @@ pub enum Lex {
     LBrack,
     RBrack,
     Plus,
+    Star,
     Eof,
 }
 
@@ -105,7 +107,8 @@ fn lexeme_parser(input: &str) -> IResult<&str, WsLex> {
                 map(string_literal, Lex::Quoted),
                 map(tag("data"), |_| Lex::KeyWord(Kw::Data)),
                 map(tag("rule"), |_| Lex::KeyWord(Kw::Rule)),
-                map(identifier, Lex::Ident),
+                map(upper_identifier, Lex::UpperIdent),
+                map(lower_identifier, Lex::LowerIdent),
                 map(tag("->"), |_| Lex::Arrow),
                 map(tag("="), |_| Lex::Equals),
                 map(char('|'), |_| Lex::Pipe),
@@ -117,6 +120,7 @@ fn lexeme_parser(input: &str) -> IResult<&str, WsLex> {
                 map(char('['), |_| Lex::LBrack),
                 map(char(']'), |_| Lex::RBrack),
                 map(char('+'), |_| Lex::Plus),
+                map(char('*'), |_| Lex::Star),
                 map(eof_, |_| Lex::Eof),
             )),
             WsLex::Lexeme,
@@ -124,20 +128,6 @@ fn lexeme_parser(input: &str) -> IResult<&str, WsLex> {
         map(comment, |_| WsLex::Comment),
         map(multispace1, |_| WsLex::Ws),
     ))(input)
-}
-
-#[test]
-fn lexer() {
-    let lexer = Lexer::from(
-        r##"
-        start --> "Once" upon {a: "time"} | there was;
-        # this is a comment
-        there -{foo: bar, !baz}-> quux;
-        "##,
-    );
-    for lex in lexer {
-        println!("{:?}", lex.expect("successful tokenization"));
-    }
 }
 
 fn eof_(input: &str) -> IResult<&str, &str> {
@@ -169,8 +159,13 @@ fn string_literal(input: &str) -> IResult<&str, IStr> {
     Ok((rest, IStr::new(content)))
 }
 
-fn identifier(input: &str) -> IResult<&str, IStr> {
-    let (rest, name) = re_find!(input, r"^([a-zA-Z0-9_][a-zA-Z0-9_]*)")?;
+fn upper_identifier(input: &str) -> IResult<&str, IStr> {
+    let (rest, name) = re_find!(input, r"^([A-Z][a-zA-Z0-9_]*)")?;
+    Ok((rest, IStr::new(name)))
+}
+
+fn lower_identifier(input: &str) -> IResult<&str, IStr> {
+    let (rest, name) = re_find!(input, r"^([a-z0-9_][a-z0-9_]*)")?;
     Ok((rest, IStr::new(name)))
 }
 
@@ -190,11 +185,24 @@ fn comment(input: &str) -> IResult<&str, &str> {
 
 ////////////////////////-EXPOSED PARSERS-///////////////////////////////////////
 
-pub fn ident(input: &[Lex]) -> IResult<&[Lex], IStr> {
+pub fn upper_ident(input: &[Lex]) -> IResult<&[Lex], IStr> {
     input
         .split_first()
         .and_then(|(first, rest)| match first {
-            Lex::Ident(sym) => Some((rest, sym.clone())),
+            Lex::UpperIdent(sym) => Some((rest, sym.clone())),
+            _ => None,
+        })
+        .ok_or(nom::Err::Error((
+            input,
+            nom::error::ErrorKind::AlphaNumeric,
+        )))
+}
+
+pub fn lower_ident(input: &[Lex]) -> IResult<&[Lex], IStr> {
+    input
+        .split_first()
+        .and_then(|(first, rest)| match first {
+            Lex::LowerIdent(sym) => Some((rest, sym.clone())),
             _ => None,
         })
         .ok_or(nom::Err::Error((
@@ -241,7 +249,7 @@ fn parsing_of_lexemes() {
     let input = lexer.to_slice(&mut buf).expect("successful tokenization");
 
     let res = terminated(
-        separated_pair(ident, lexeme(Lex::Arrow), ident),
+        separated_pair(lower_ident, lexeme(Lex::Arrow), lower_ident),
         lexeme(Lex::Eof),
     )(input);
 

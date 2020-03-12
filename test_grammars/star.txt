@@ -1,0 +1,44 @@
+data Number = singular | plural
+data Person = 1st | 2nd | 3rd
+data Gender = masculine | feminine | nonbinary | neutral
+
+rule start = they.Number.Person.Gender look.Number.Person.Gender "at" themself.Number.Person.Gender "in the mirror."
+
+rule they.Number.Person.Gender =
+    .singular {
+        .1st.* -> "I"
+        .2nd.* -> "you"
+        .3rd {
+            .masculine -> "he"
+            .feminine -> "she"
+            .nonbinary -> "they"
+            .neutral -> "it"
+        }
+    }
+    .plural {
+        .1st.* -> "we"
+        .2nd.* -> "y'all"
+        .3rd.* -> "they"
+    }
+
+rule look.Number.Person.Gender =
+    .singular.3rd.nonbinary -> "look"
+    .singular.3rd.* -> "looks"
+    .*.*.* -> "look"
+
+rule themself.Number.Person.Gender =
+    .singular {
+        .1st.* -> "myself"
+        .2nd.* -> "yourself"
+        .3rd {
+            .masculine -> "himself"
+            .feminine -> "herself"
+            .nonbinary -> "themself"
+            .neutral -> "itself"
+        }
+    }
+    .plural {
+        .1st.* -> "ourselves"
+        .2nd.* -> "yourselves"
+        .3rd.* -> "themselves"
+    }

@@ -9,7 +9,21 @@ use nom::{
 };
 use std::collections::HashSet;
 pub mod lex;
-use lex::{ident, keyword, lexeme, quoted, Kw, Lex};
+use lex::{keyword, lexeme, lower_ident, quoted, upper_ident, Kw, Lex};
+
+/// Can appear in a case-analysis in the body of a rule.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Pattern {
+    Star,
+    Variant(DataVariant),
+}
+
+/// The values or variables passed to a rule when it is referenced (called).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Argument {
+    Variant(DataVariant),
+    Variable(DataVariable),
+}
 
 /// The name of a rule.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +56,7 @@ pub struct DataVariant(pub IStr);
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleRef {
     pub rule: RuleName,
-    pub vars: Vec<DataVariable>,
+    pub vars: Vec<Argument>,
 }
 
 /// The type signature of a rule.
@@ -69,12 +83,14 @@ pub struct DataDecl {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Guard {
-    pub requirements: Vector<DataVariant>,
+    pub requirements: Vec<Pattern>,
 }
 
 impl Guard {
     fn append(&mut self, other: &Self) {
-        self.requirements.append(other.requirements.clone());
+        for req in &other.requirements {
+            self.requirements.push(req.clone());
+        }
     }
 }
 
@@ -98,11 +114,15 @@ pub struct Grammar {
 
 type Res<'a, T> = IResult<&'a [Lex], T>;
 
+/// Parses:
+/// ```no_run
+/// data Foo = variant_1 | variant_2 | variant_n
+/// ```
 fn data_decl(input: &[Lex]) -> Res<DataDecl> {
     let (rest, _) = keyword(Kw::Data)(input)?;
-    let (rest, name) = ident(rest)?;
+    let (rest, name) = upper_ident(rest)?;
     let (rest, _) = lexeme(Lex::Equals)(rest)?;
-    let (rest, variants) = separated_nonempty_list(lexeme(Lex::Pipe), ident)(rest)?;
+    let (rest, variants) = separated_nonempty_list(lexeme(Lex::Pipe), lower_ident)(rest)?;
     let decl = DataDecl {
         name: DataName(name),
         variants: variants.iter().map(|s| DataVariant(IStr::new(s))).collect(),
@@ -131,17 +151,25 @@ fn parse_data_decl() {
     assert_eq!(parsed, decl);
 }
 
+fn argument(input: &[Lex]) -> Res<Argument> {
+    alt((
+        map(upper_ident, |i| Argument::Variable(DataVariable(i))),
+        map(lower_ident, |i| Argument::Variant(DataVariant(i))),
+    ))(input)
+}
+
 /// Parsed a reference to a rule like: `start.G1.N2` or `story`.
 fn rule_ref(input: &[Lex]) -> Res<RuleRef> {
-    let (rest, name) = ident(input)?;
-    let (rest, vars) = many0(preceded(lexeme(Lex::Dot), ident))(rest)?;
+    let (rest, name) = lower_ident(input)?;
+    let (rest, vars) = many0(preceded(lexeme(Lex::Dot), argument))(rest)?;
     let reference = RuleRef {
         rule: RuleName(name),
-        vars: vars.into_iter().map(DataVariable).collect(),
+        vars,
     };
     Ok((rest, reference))
 }
 
+/// A sequence of string literals, plus-signs, or rule references (calls).
 fn sentential_form(input: &[Lex]) -> Res<SententialForm> {
     let (rest, vec) = many1(alt((
         map(quoted, Token::StrLit),
@@ -151,10 +179,11 @@ fn sentential_form(input: &[Lex]) -> Res<SententialForm> {
     Ok((rest, Vector::from(vec)))
 }
 
-/// Parsed a reference to a rule like: `start.G1.N2` or `story`.
+/// Parses the (type) signature a rule like: `start.Gender.Number` or `story`. Appears
+/// at the start of a rule definition.
 fn rule_sig(input: &[Lex]) -> Res<RuleSig> {
-    let (rest, name) = ident(input)?;
-    let (rest, vars) = many0(preceded(lexeme(Lex::Dot), ident))(rest)?;
+    let (rest, name) = lower_ident(input)?;
+    let (rest, vars) = many0(preceded(lexeme(Lex::Dot), upper_ident))(rest)?;
     let sig = RuleSig {
         name: RuleName(name),
         parameter_types: vars.into_iter().map(DataName).collect(),
@@ -162,15 +191,28 @@ fn rule_sig(input: &[Lex]) -> Res<RuleSig> {
     Ok((rest, sig))
 }
 
+fn pattern(input: &[Lex]) -> Res<Pattern> {
+    alt((
+        map(lower_ident, |i| Pattern::Variant(DataVariant(i))),
+        map(lexeme(Lex::Star), |_| Pattern::Star),
+    ))(input)
+}
+
+/// Parses:
+/// ```no_run
+/// .ident_1.ident_2.ident_n
+/// ```
 fn guard(input: &[Lex]) -> Res<Guard> {
     let dot = lexeme(Lex::Dot);
-    let (rest, requirements) = many1(preceded(dot, ident))(input)?;
-    let guard = Guard {
-        requirements: requirements.into_iter().map(DataVariant).collect(),
-    };
+    let (rest, requirements) = many1(preceded(dot, pattern))(input)?;
+    let guard = Guard { requirements };
     Ok((rest, guard))
 }
 
+/// Parses:
+/// ```no_run
+/// sentential_form_1 | sentential_form_2 | sentential_form_n
+/// ```
 fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
     move |input| {
         let pipe = lexeme(Lex::Pipe);
@@ -279,6 +321,7 @@ fn parse_decl() {
 
     let src = r#"
     data Number = singular | plural
+    data Person = 1st | 2nd | 3rd
 
     rule want.Number.Person =
         .singular {
@@ -296,20 +339,33 @@ fn parse_decl() {
     let mut buf = vec![];
     lexer.to_slice(&mut buf).expect("tokenization to succeed");
     let (rest, actual) = parse_from_lex_stream(&buf).expect("parse to succeed");
+    assert!(rest.is_empty());
 
     let make_guard = |v: &[&str]| Guard {
-        requirements: v.into_iter().map(|s| DataVariant(IStr::new(s))).collect(),
+        requirements: v
+            .into_iter()
+            .map(|s| Pattern::Variant(DataVariant(IStr::new(s))))
+            .collect(),
     };
     let sentence = |s: &str| vector![Token::StrLit(IStr::new(s))];
 
     let expected = Grammar {
-        data_decls: vec![DataDecl {
-            name: DataName(IStr::new("Number")),
-            variants: vec![IStr::new("singular"), IStr::new("plural")]
-                .into_iter()
-                .map(DataVariant)
-                .collect(),
-        }],
+        data_decls: vec![
+            DataDecl {
+                name: DataName(IStr::new("Number")),
+                variants: vec![IStr::new("singular"), IStr::new("plural")]
+                    .into_iter()
+                    .map(DataVariant)
+                    .collect(),
+            },
+            DataDecl {
+                name: DataName(IStr::new("Person")),
+                variants: vec![IStr::new("1st"), IStr::new("2nd"), IStr::new("3rd")]
+                    .into_iter()
+                    .map(DataVariant)
+                    .collect(),
+            },
+        ],
         rule_decls: vec![RuleDecl {
             signature: RuleSig {
                 name: RuleName(IStr::new("want")),

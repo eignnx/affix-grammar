@@ -1,7 +1,7 @@
-use crate::env::Env;
 use crate::parser::lex::Lexer;
 use crate::parser::{
-    DataName, DataVariable, DataVariant, Grammar, RuleBody, RuleName, RuleRef, Token,
+    Argument, DataName, DataVariable, DataVariant, Grammar, Pattern, RuleBody, RuleName, RuleRef,
+    Token,
 };
 use im::{vector, Vector};
 use internship::IStr;
@@ -60,6 +60,11 @@ impl From<&IStr> for OutToken {
 
 const DEFAULT_MAX_TRIALS: usize = 1000;
 
+enum ChoiceErr {
+    UnboundRuleName,
+    InexhaustivePattern,
+}
+
 impl Generator {
     pub fn new(grammar: Grammar) -> Self {
         Self {
@@ -75,30 +80,36 @@ impl Generator {
         joined == sym.as_str()
     }
 
-    fn choose_rule(&self, rule_name: &RuleName, arguments: Vec<DataVariant>) -> Option<RuleBody> {
+    fn choose_rule(
+        &self,
+        rule_name: &RuleName,
+        arguments: &Vec<DataVariant>,
+    ) -> Result<RuleBody, ChoiceErr> {
         // Collect all rules that *could* expand `token`.
         let rule = self
             .grammar
             .rule_decls
             .iter()
             .filter(|rule_decl| &rule_decl.signature.name == rule_name)
-            .next()?;
+            .next()
+            .ok_or(ChoiceErr::UnboundRuleName)?;
 
         let mut possibilities: Vec<_> = rule.bodies.clone();
 
         // Keep picking random rules until one is found which satisfies it's guard conditions.
         loop {
             if possibilities.is_empty() {
-                return None;
+                // We are out of possibilities. This case must not have been handled in the case analysis.
+                return Err(ChoiceErr::InexhaustivePattern);
             }
             let idx = self.rng.borrow_mut().gen_range(0, possibilities.len());
             let body = &possibilities[idx];
             if self.allowable(
                 &rule.signature.parameter_types,
                 &body.guard.requirements,
-                &arguments,
+                arguments,
             ) {
-                return Some(body.clone());
+                return Ok(body.clone());
             } else {
                 possibilities.swap_remove(idx);
             }
@@ -108,7 +119,7 @@ impl Generator {
     fn allowable(
         &self,
         _types: &Vec<DataName>,
-        requirements: &Vector<DataVariant>,
+        requirements: &Vec<Pattern>,
         arguments: &Vec<DataVariant>,
     ) -> bool {
         // TODO: add type checking here?
@@ -120,12 +131,16 @@ impl Generator {
                 arguments,
                 requirements.len()
             );
-        } else {
-            requirements
-                .iter()
-                .zip(arguments.iter())
-                .all(|(req, arg)| req == arg)
         }
+
+        requirements
+            .iter()
+            .zip(arguments.iter())
+            .all(|(req, arg)| match req {
+                // Pattern::Star (`.*`) matches against any actual variant.
+                Pattern::Star => true,
+                Pattern::Variant(v) => v == arg,
+            })
     }
 
     /// Given a variable name, if the current state already has a binding for
@@ -196,15 +211,21 @@ impl Generator {
                     // Ensure each of `vars` has a binding.
                     let arguments: Vec<_> = vars
                         .iter()
-                        .map(|v| self.value_of_variable(v, &mut state).clone())
+                        .map(|arg| match arg {
+                            Argument::Variable(var) => {
+                                self.value_of_variable(var, &mut state).clone()
+                            }
+                            Argument::Variant(val) => val.clone(),
+                        })
                         .collect();
 
                     // Search the grammar's rules via `self.choose_rule`.
                     // If no rule bodies are viable, panic.
                     let tokens_to_add: Vector<OutToken> = {
-                        let body = self.choose_rule(rule, arguments).unwrap_or_else(|| {
-                            panic!("The identifier `{}` is not the name of a rule!", rule.0);
-                        });
+                        let body = match self.choose_rule(rule, &arguments) {
+                            Ok(body) => body,
+                            Err(err) => self.report_choice_error(err, rule, &arguments),
+                        };
                         let next_sentence = body.sentential_form.clone();
                         self.generate_non_unique_from_sentence(next_sentence)
                     };
@@ -215,6 +236,42 @@ impl Generator {
         }
 
         new_sentence
+    }
+
+    /// TODO: exatract this logic into top-level error reporting, i.e. we shouldn't be `panic`ing here.
+    fn report_choice_error(
+        &self,
+        err: ChoiceErr,
+        rule: &RuleName,
+        arguments: &Vec<DataVariant>,
+    ) -> ! {
+        match err {
+            ChoiceErr::UnboundRuleName => {
+                panic!("The identifier `{}` is not the name of a rule!", rule.0)
+            }
+            ChoiceErr::InexhaustivePattern => {
+                let typ_names = self
+                    .grammar
+                    .rule_decls
+                    .iter()
+                    .filter(|decl| &decl.signature.name == rule)
+                    .next()
+                    .expect("rule to exist")
+                    .signature
+                    .parameter_types
+                    .iter()
+                    .map(|typ_name| typ_name.0.as_str());
+                let arg_names = arguments.iter().map(|evald_arg| evald_arg.0.as_str());
+                let bindings = arg_names
+                    .zip(typ_names)
+                    .map(|(value, typ)| format!("{} = .{}", typ, value))
+                    .collect::<Vec<_>>();
+                panic!(
+                    "No case of rule `{}` matches the current arguments: {:?}",
+                    rule.0, bindings
+                )
+            }
+        }
     }
 
     /// Takes in a iterator of either `Sym`s or `Plus`es. Before every `Sym`,
