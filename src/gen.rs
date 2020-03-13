@@ -1,3 +1,5 @@
+use crate::fault::{self, Fault};
+use crate::parser::lex::Lex;
 use crate::parser::lex::Lexer;
 use crate::parser::syntax::{
     Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleName,
@@ -9,10 +11,6 @@ use rand::seq::IteratorRandom;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    convert::TryFrom,
-    fs,
-    io::{self, Read},
-    path::Path,
 };
 
 // type State = Env<IStr, Vector<OutToken>>;
@@ -60,11 +58,6 @@ impl From<&IStr> for OutToken {
 
 const DEFAULT_MAX_TRIALS: usize = 1000;
 
-enum ChoiceErr {
-    UnboundRuleName,
-    InexhaustivePattern,
-}
-
 impl Generator {
     pub fn new(grammar: Grammar) -> Self {
         Self {
@@ -75,11 +68,14 @@ impl Generator {
         }
     }
 
-    fn choose_rule(
-        &self,
+    fn choose_rule<'gen, 'buf>(
+        &'gen self,
         rule_name: &RuleName,
         arguments: &Vec<DataVariant>,
-    ) -> Result<Case, ChoiceErr> {
+    ) -> fault::Result<'buf, Case>
+    where
+        'buf: 'gen,
+    {
         // Collect all rules that *could* expand `token`.
         let rule = self
             .grammar
@@ -87,7 +83,7 @@ impl Generator {
             .iter()
             .filter(|rule_decl| &rule_decl.signature.name == rule_name)
             .next() // TODO: Should this *only* return the first-found rule decl?
-            .ok_or(ChoiceErr::UnboundRuleName)?;
+            .ok_or(Fault::unbound_rule_name(rule_name.0.as_str()))?;
 
         // Check each case one after another until an allowable case is found.
         for case in &rule.cases {
@@ -98,7 +94,11 @@ impl Generator {
             }
         }
         // We are out of possibilities. This case must not have been handled in the case analysis.
-        Err(ChoiceErr::InexhaustivePattern)
+        Err(Fault::inexhaustive_case_analysis(
+            &self.grammar.rule_decls,
+            rule_name,
+            arguments,
+        ))
     }
 
     fn allowable(
@@ -166,7 +166,13 @@ impl Generator {
         })
     }
 
-    fn generate_non_unique_from_start(&self, start: RuleName) -> Vector<OutToken> {
+    fn generate_non_unique_from_start<'gen, 'buf>(
+        &'gen self,
+        start: RuleName,
+    ) -> fault::Result<'buf, Vector<OutToken>>
+    where
+        'buf: 'gen,
+    {
         let start_call = RuleRef {
             rule: start,
             vars: vec![],
@@ -175,7 +181,10 @@ impl Generator {
         self.generate_non_unique_from_sentence(start_sentence)
     }
 
-    fn generate_non_unique_from_sentence(&self, sentence: Vector<Token>) -> Vector<OutToken> {
+    fn generate_non_unique_from_sentence<'gen, 'buf>(
+        &'gen self,
+        sentence: Vector<Token>,
+    ) -> fault::Result<'buf, Vector<OutToken>> {
         let mut state = HashMap::new();
         let mut new_sentence: Vector<OutToken> = Default::default();
 
@@ -200,59 +209,18 @@ impl Generator {
 
                     // Search the grammar's rules via `self.choose_rule`.
                     // If no rule cases are viable, panic.
-                    let tokens_to_add: Vector<OutToken> = {
-                        let case = match self.choose_rule(rule, &arguments) {
-                            Ok(case) => case,
-                            Err(err) => self.report_choice_error(err, rule, &arguments),
-                        };
-                        let next_sentence =
+                    let case = self.choose_rule(rule, &arguments)?;
+                    let next_sentence =
                             case.alternatives.iter().choose(&mut *self.rng.borrow_mut())
                             .expect("Invariant violated by parser: should not be able to have an empty set of sentential form alternatives!");
-                        self.generate_non_unique_from_sentence(next_sentence.clone())
-                    };
-
+                    let tokens_to_add =
+                        self.generate_non_unique_from_sentence(next_sentence.clone())?;
                     new_sentence.append(tokens_to_add);
                 }
             }
         }
 
-        new_sentence
-    }
-
-    /// TODO: exatract this logic into top-level error reporting, i.e. we shouldn't be `panic`ing here.
-    fn report_choice_error(
-        &self,
-        err: ChoiceErr,
-        rule: &RuleName,
-        arguments: &Vec<DataVariant>,
-    ) -> ! {
-        match err {
-            ChoiceErr::UnboundRuleName => {
-                panic!("The identifier `{}` is not the name of a rule!", rule.0)
-            }
-            ChoiceErr::InexhaustivePattern => {
-                let typ_names = self
-                    .grammar
-                    .rule_decls
-                    .iter()
-                    .filter(|decl| &decl.signature.name == rule)
-                    .next()
-                    .expect("rule to exist")
-                    .signature
-                    .parameter_types
-                    .iter()
-                    .map(|typ_name| typ_name.0.as_str());
-                let arg_names = arguments.iter().map(|evald_arg| evald_arg.0.as_str());
-                let bindings = arg_names
-                    .zip(typ_names)
-                    .map(|(value, typ)| format!("{} = .{}", typ, value))
-                    .collect::<Vec<_>>();
-                panic!(
-                    "No case of rule `{}` matches the current arguments: {:?}",
-                    rule.0, bindings
-                )
-            }
-        }
+        Ok(new_sentence)
     }
 
     /// Takes in a iterator of either `Sym`s or `Plus`es. Before every `Sym`,
@@ -279,17 +247,20 @@ impl Generator {
         text
     }
 
-    pub fn generate(&mut self) -> Option<String> {
+    pub fn generate<'gen, 'buf>(&'gen mut self) -> fault::Result<'buf, Option<String>>
+    where
+        'buf: 'gen,
+    {
         let start = RuleName(IStr::new("start"));
         let mut trials = 0;
         loop {
-            let sentence = self.generate_non_unique_from_start(start.clone());
+            let sentence = self.generate_non_unique_from_start(start.clone())?;
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());
-                break Some(text);
+                break Ok(Some(text));
             } else if trials >= self.max_trials {
-                break None;
+                break Ok(None);
             } else {
                 trials += 1;
             }
@@ -297,30 +268,17 @@ impl Generator {
     }
 }
 
-impl TryFrom<&Path> for Generator {
-    type Error = io::Error;
-
-    fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let mut src = String::new();
-        let mut file = fs::File::open(path)?;
-        file.read_to_string(&mut src)?;
-
-        let mut lexer = Lexer::from(src.as_ref());
-        let mut lexeme_buf = vec![];
-        match lexer.to_slice(&mut lexeme_buf) {
-            Ok(_) => (),
-            Err(e) => panic!("Error encountered while tokenizing: {}", e),
-        }
-        let parse_res = crate::parser::parse_from_lex_stream(&lexeme_buf);
-
-        let grammar = match parse_res {
-            Ok((_rest, grammar)) => grammar,
-            Err(e) => {
-                eprintln!("Error encountered while parsing: {}", e);
-                std::process::exit(-1);
-            }
-        };
-
-        Ok(Self::new(grammar))
-    }
+/// You must keep the src string and the lexeme buffer alive until after the
+/// function terminates so that errors that reference either of them can be
+/// propagated up.
+pub fn parse_grammar<'buf>(
+    src: &'buf String,
+    lexeme_buf: &'buf mut Vec<Lex>,
+) -> fault::Result<'buf, Grammar> {
+    let mut lexer = Lexer::from(src.as_ref());
+    let _ = lexer.to_slice(lexeme_buf).map_err(Fault::BadTokenization)?;
+    let grammar = crate::parser::parse_from_lex_stream(lexeme_buf)
+        .map(|(_rest, grammar)| grammar)
+        .map_err(Fault::BadParse)?;
+    Ok(grammar)
 }

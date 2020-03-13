@@ -1,12 +1,11 @@
 mod cli;
+mod fault;
 mod gen;
 mod parser;
 
-use gen::Generator;
-use std::{
-    convert::TryFrom,
-    io::{self, Write},
-};
+use gen::{parse_grammar, Generator};
+use std::fs;
+use std::io::{self, Write};
 use structopt::StructOpt;
 
 fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&'buf str> {
@@ -19,13 +18,17 @@ fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&
 
 fn main() -> io::Result<()> {
     let cli_options = cli::Options::from_args();
-    let mut generator = Generator::try_from(cli_options.grammar_file.as_ref())?;
+    let src = fs::read_to_string(&cli_options.grammar_file)?;
+    let mut lexeme_buf = Vec::new();
+    let grammar = parse_grammar(&src, &mut lexeme_buf).unwrap_or_else(|err| panic!("{}", err));
+
+    let mut generator = Generator::new(grammar);
 
     println!();
     for _ in 0..cli_options.number {
         let sentence = match generator.generate() {
-            Some(sentence) => sentence,
-            None => {
+            Ok(Some(sentence)) => sentence,
+            Ok(None) => {
                 println!();
                 println!(
                     "[Max iterations ({}) exceeded and no new sentences found! \
@@ -34,6 +37,7 @@ fn main() -> io::Result<()> {
                 );
                 break;
             }
+            Err(err) => panic!("{}", err),
         };
         println!("\t\"{}\"", sentence);
     }
@@ -48,11 +52,11 @@ fn main() -> io::Result<()> {
     'outer: while cli_options.interactive && resp.is_empty() {
         'inner: loop {
             match generator.generate() {
-                Some(sentence) => {
+                Ok(Some(sentence)) => {
                     println!("\n\t\"{}\"\n", sentence);
                     break 'inner;
                 }
-                None => {
+                Ok(None) => {
                     println!(
                         "[Max iterations ({}) exceeded and no new sentences found! \
                          This may mean all possible sentences have been generated.]",
@@ -76,6 +80,7 @@ fn main() -> io::Result<()> {
                         break 'outer;
                     }
                 }
+                Err(err) => panic!("{}", err),
             };
         }
 
