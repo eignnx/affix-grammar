@@ -20,7 +20,7 @@ pub struct Generator {
     grammar: Grammar,
     rng: RefCell<rand::rngs::ThreadRng>,
     seen_sentences: HashSet<im::Vector<OutToken>>,
-    pub(crate) max_trials: usize,
+    pub max_trials: usize,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]

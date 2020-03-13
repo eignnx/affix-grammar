@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "state-grammar")]
+#[structopt(name = "affix-grammar-cli")]
 pub struct Options {
     /// The path to the grammar file.
     #[structopt(name = "GRAMMAR-FILE", parse(from_os_str))]

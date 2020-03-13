@@ -1,9 +1,5 @@
 mod cli;
-mod fault;
-mod gen;
-mod parser;
-
-use gen::{parse_grammar, Generator};
+use libaffix::gen::{parse_grammar, Generator};
 use std::fs;
 use std::io::{self, Write};
 use structopt::StructOpt;
