@@ -6,46 +6,61 @@ Generates sentences based on a grammar, but does not parse sentences.
 
 ## Example Grammar
 
-**NOTE:** syntax is likely to change, this may or may not be up-to-date.
-
 ```haskell
 data Number = singular | plural
-data Gender = masculine | feminine | nonbinary
+data Person = 1st | 2nd | 3rd
+data Gender = masculine | feminine | nonbinary | neutral
 
-rule start =
-    they.N1.G1 "said to" themself.N1.G1 "'" + they.N2.G2 are.N2.G2 "mean.'"
+-- The `start` rule must always be defined. This is the rule that is expanded
+-- first.
+-- The expression `they.N.P.G` is a reference to a rule (kinda like a function
+-- call).
+-- The arguments N, P, and G are variables that are bound to values implicitly,
+-- for instance, N might be bound to the Number variant `plural`.
+-- N is an abbreviation for Number, P is some Person, G is Gender.
+-- The full names of the data types can be spelled out, but for brevity, the can
+-- be abbreviated as long as there is no ambiguity.
+rule start = they.N.P.G look.N.P.G "at" themself.N.P.G "in the mirror."
 
-rule they.Number.Gender =
+-- This is a rule that knows how to conjugate the present-tense verb "to look".
+rule look.Number.Person.Gender =
+    .singular.3rd.nonbinary -> "look"
+    .singular.3rd.* -> "looks"
+    .*.*.* -> "look"
+
+rule they.Number.Person.Gender =
     .singular {
-        .masculine -> "he"
-        .feminine -> "she"
-        .nonbinary -> "they"
+        .1st.* -> "I"
+        .2nd.* -> "you"
+        .3rd {
+            .masculine -> "he"
+            .feminine -> "she"
+            .nonbinary -> "they"
+            .neutral -> "it"
+        }
     }
     .plural {
-        .masculine -> "they"
-        .feminine -> "they"
-        .nonbinary -> "they"
+        .1st.* -> "we"
+        .2nd.* -> "y'all" | "you"
+        .3rd.* -> "they"
     }
 
-rule themself.Number.Gender =
+rule themself.Number.Person.Gender =
     .singular {
-        .masculine -> "himself"
-        .feminine -> "herself"
-        .nonbinary -> "themself"
+        .1st.* -> "myself"
+        .2nd.* -> "yourself"
+        .3rd {
+            .masculine -> "himself"
+            .feminine -> "herself"
+            .nonbinary -> "themself"
+            .neutral -> "itself"
+        }
     }
     .plural {
-        .masculine -> "themselves"
-        .feminine -> "themselves"
-        .nonbinary -> "themselves"
+        .1st.* -> "ourselves"
+        .2nd.* -> "yourselves"
+        .3rd.* -> "themselves"
     }
-
-rule are.Number.Gender =
-    .singular.masculine -> "is"
-    .singular.feminine -> "is"
-    .singular.nonbinary -> "are"
-    .plural.masculine -> "are"
-    .plural.feminine -> "are"
-    .plural.nonbinary -> "are"
 
 ```
 

@@ -5,7 +5,7 @@ use crate::parser::{
 };
 use im::{vector, Vector};
 use internship::IStr;
-use rand::{seq::IteratorRandom, Rng};
+use rand::seq::IteratorRandom;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -73,11 +73,6 @@ impl Generator {
             seen_sentences: HashSet::new(),
             max_trials: DEFAULT_MAX_TRIALS,
         }
-    }
-
-    fn symbol_eq_sentence(&self, sym: IStr, sentence: &Vector<OutToken>) -> bool {
-        let joined = self.join_symbols(sentence.iter());
-        joined == sym.as_str()
     }
 
     fn choose_rule(

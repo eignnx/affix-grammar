@@ -49,10 +49,6 @@ pub struct Lexer<'input> {
 }
 
 impl<'input> Lexer<'input> {
-    pub fn new(input: &'input str) -> Self {
-        Self { input, done: false }
-    }
-
     pub fn to_slice<'buf>(
         &mut self,
         buf: &'buf mut Vec<Lex>,
@@ -179,8 +175,9 @@ fn take_until_line_end_or_eof(input: &str) -> IResult<&str, &str> {
     Ok(("", input))
 }
 
+/// We're gonna allow both `#` and `--` to begin a comment.
 fn comment(input: &str) -> IResult<&str, &str> {
-    preceded(char('#'), take_until_line_end_or_eof)(input)
+    preceded(alt((tag("#"), tag("--"))), take_until_line_end_or_eof)(input)
 }
 
 ////////////////////////-EXPOSED PARSERS-///////////////////////////////////////
