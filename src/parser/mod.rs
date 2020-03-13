@@ -13,7 +13,7 @@ use lex::{keyword, lexeme, lower_ident, quoted, upper_ident, Kw, Lex};
 
 pub mod syntax;
 use syntax::{
-    Argument, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleBody,
+    Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
 
@@ -121,15 +121,15 @@ fn guard(input: &[Lex]) -> Res<Guard> {
 /// ```no_run
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<RuleBody> {
+fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
     move |input| {
         let pipe = lexeme(Lex::Pipe);
         let (rest, alternatives) = separated_nonempty_list(pipe, sentential_form)(input)?;
-        let rule_body = RuleBody {
+        let rule_case = Case {
             guard: guard.clone(),
             alternatives,
         };
-        Ok((rest, rule_body))
+        Ok((rest, rule_case))
     }
 }
 
@@ -137,7 +137,7 @@ fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<RuleBody
 /// ```no_run
 /// .foo.bar.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn guard_arrow_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<RuleBody> {
+fn guard_arrow_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
     move |input| {
         let mut curr_guard = curr_guard.clone();
         let (rest, more_guard) = guard(input)?;
@@ -149,45 +149,45 @@ fn guard_arrow_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<RuleBody> 
 
 /// Parses:
 /// ```no_run
-/// .foo.bar.baz { rule_body_1 rule_body_2 rule_body_n }
+/// .foo.bar.baz { rule_case_1 rule_case_2 rule_case_n }
 /// ```
-fn nested_guard_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
+fn nested_guard_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
     move |input| {
         let lbrace = lexeme(Lex::LBrace);
         let rbrace = lexeme(Lex::RBrace);
         let mut curr_guard = curr_guard.clone();
         let (rest, more_guard) = guard(input)?;
         curr_guard.append(&more_guard);
-        let (rest, bodies) = delimited(lbrace, many0(rule_bodies(curr_guard)), rbrace)(rest)?;
-        let bodies = bodies.into_iter().flatten().collect();
-        Ok((rest, bodies))
+        let (rest, cases) = delimited(lbrace, many0(rule_cases(curr_guard)), rbrace)(rest)?;
+        let cases = cases.into_iter().flatten().collect();
+        Ok((rest, cases))
     }
 }
 
-fn guarded_rule_body(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
+fn guarded_rule_case(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
     move |input| {
         alt((
-            map(guard_arrow_rule_body(guard.clone()), |body| vec![body]),
-            nested_guard_rule_body(guard.clone()),
+            map(guard_arrow_rule_case(guard.clone()), |case| vec![case]),
+            nested_guard_rule_case(guard.clone()),
         ))(input)
     }
 }
 
 /// Can either be:
 /// - a list of sentential-form alternatives, or
-/// - a guarded rule body like:
+/// - a guarded rule case like:
 ///     - `.foo.bar -> some_sentential_form`, or
-///     - `.foo { nested_rule_bodies }`
-fn rule_bodies(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
+///     - `.foo { nested_rule_cases }`
+fn rule_cases(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
     move |input| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
-        let (rest, bodies) = alt((
-            map(many1(guarded_rule_body(guard.clone())), flatten),
-            map(sentential_form_alternatives(guard.clone()), |body| {
-                vec![body]
+        let (rest, cases) = alt((
+            map(many1(guarded_rule_case(guard.clone())), flatten),
+            map(sentential_form_alternatives(guard.clone()), |case| {
+                vec![case]
             }),
         ))(input)?;
-        Ok((rest, bodies))
+        Ok((rest, cases))
     }
 }
 
@@ -195,8 +195,8 @@ fn rule_decl(input: &[Lex]) -> Res<RuleDecl> {
     let (rest, _) = keyword(Kw::Rule)(input)?;
     let (rest, signature) = rule_sig(rest)?;
     let (rest, _) = lexeme(Lex::Equals)(rest)?;
-    let (rest, bodies) = rule_bodies(Guard::default())(rest)?;
-    let decl = RuleDecl { signature, bodies };
+    let (rest, cases) = rule_cases(Guard::default())(rest)?;
+    let decl = RuleDecl { signature, cases };
     Ok((rest, decl))
 }
 
@@ -283,28 +283,28 @@ fn parse_decl() {
                 name: RuleName(IStr::new("want")),
                 parameter_types: vec![DataName(IStr::new("Number")), DataName(IStr::new("Person"))],
             },
-            bodies: vec![
-                RuleBody {
+            cases: vec![
+                Case {
                     guard: make_guard(&["singular", "1st"]),
                     alternatives: vec![sentence("veux")],
                 },
-                RuleBody {
+                Case {
                     guard: make_guard(&["singular", "2nd"]),
                     alternatives: vec![sentence("veux")],
                 },
-                RuleBody {
+                Case {
                     guard: make_guard(&["singular", "3rd"]),
                     alternatives: vec![sentence("veut")],
                 },
-                RuleBody {
+                Case {
                     guard: make_guard(&["plural", "1st"]),
                     alternatives: vec![sentence("voulons")],
                 },
-                RuleBody {
+                Case {
                     guard: make_guard(&["plural", "2nd"]),
                     alternatives: vec![sentence("voulez")],
                 },
-                RuleBody {
+                Case {
                     guard: make_guard(&["plural", "3rd"]),
                     alternatives: vec![sentence("voulent")],
                 },

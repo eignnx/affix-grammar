@@ -88,7 +88,7 @@ impl Guard {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct RuleBody {
+pub struct Case {
     pub guard: Guard,
     pub alternatives: Vec<SententialForm>,
 }
@@ -96,7 +96,7 @@ pub struct RuleBody {
 #[derive(Debug, PartialEq)]
 pub struct RuleDecl {
     pub signature: RuleSig,
-    pub bodies: Vec<RuleBody>,
+    pub cases: Vec<Case>,
 }
 
 #[derive(Debug, Default, PartialEq)]

@@ -1,6 +1,6 @@
 use crate::parser::lex::Lexer;
 use crate::parser::syntax::{
-    Argument, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleBody, RuleName,
+    Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleName,
     RuleRef, Token,
 };
 use im::{vector, Vector};
@@ -79,7 +79,7 @@ impl Generator {
         &self,
         rule_name: &RuleName,
         arguments: &Vec<DataVariant>,
-    ) -> Result<RuleBody, ChoiceErr> {
+    ) -> Result<Case, ChoiceErr> {
         // Collect all rules that *could* expand `token`.
         let rule = self
             .grammar
@@ -89,8 +89,8 @@ impl Generator {
             .next() // TODO: Should this *only* return the first-found rule decl?
             .ok_or(ChoiceErr::UnboundRuleName)?;
 
-        // Check each case (body) one after another until an allowable case is found.
-        for case in &rule.bodies {
+        // Check each case one after another until an allowable case is found.
+        for case in &rule.cases {
             let param_typs = &rule.signature.parameter_types;
             let reqs = &case.guard;
             if self.allowable(&param_typs, reqs, arguments) {
@@ -199,14 +199,14 @@ impl Generator {
                         .collect();
 
                     // Search the grammar's rules via `self.choose_rule`.
-                    // If no rule bodies are viable, panic.
+                    // If no rule cases are viable, panic.
                     let tokens_to_add: Vector<OutToken> = {
-                        let body = match self.choose_rule(rule, &arguments) {
-                            Ok(body) => body,
+                        let case = match self.choose_rule(rule, &arguments) {
+                            Ok(case) => case,
                             Err(err) => self.report_choice_error(err, rule, &arguments),
                         };
                         let next_sentence =
-                            body.alternatives.iter().choose(&mut *self.rng.borrow_mut())
+                            case.alternatives.iter().choose(&mut *self.rng.borrow_mut())
                             .expect("Invariant violated by parser: should not be able to have an empty set of sentential form alternatives!");
                         self.generate_non_unique_from_sentence(next_sentence.clone())
                     };
