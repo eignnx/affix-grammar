@@ -1,7 +1,7 @@
 use crate::parser::lex::Lexer;
 use crate::parser::syntax::{
-    Argument, DataName, DataVariable, DataVariant, Grammar, Pattern, RuleBody, RuleName, RuleRef,
-    Token,
+    Argument, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleBody, RuleName,
+    RuleRef, Token,
 };
 use im::{vector, Vector};
 use internship::IStr;
@@ -92,7 +92,7 @@ impl Generator {
         // Check each case (body) one after another until an allowable case is found.
         for case in &rule.bodies {
             let param_typs = &rule.signature.parameter_types;
-            let reqs = &case.guard.requirements;
+            let reqs = &case.guard;
             if self.allowable(&param_typs, reqs, arguments) {
                 return Ok(case.clone());
             }
@@ -104,22 +104,23 @@ impl Generator {
     fn allowable(
         &self,
         _types: &Vec<DataName>,
-        requirements: &Vec<Pattern>,
+        guard: &Guard,
         arguments: &Vec<DataVariant>,
     ) -> bool {
         // TODO: add type checking here? When ready, use the currently-unused `_types` parameter.
-        if requirements.len() != arguments.len() {
+        if guard.requirements.len() != arguments.len() {
             // TODO: how should we handle missing types?
             //       Is `foo.X1.Y1` == `foo.X1` == `foo`?
             // TODO: add better context to this error i.e. what rule name? where was it called?
             panic!(
                 "Wrong number of arguments! Got values {:?} but needed {} values!",
                 arguments,
-                requirements.len()
+                guard.requirements.len()
             );
         }
 
-        requirements
+        guard
+            .requirements
             .iter()
             .zip(arguments.iter())
             .all(|(req, arg)| match req {
@@ -204,8 +205,10 @@ impl Generator {
                             Ok(body) => body,
                             Err(err) => self.report_choice_error(err, rule, &arguments),
                         };
-                        let next_sentence = body.sentential_form.clone();
-                        self.generate_non_unique_from_sentence(next_sentence)
+                        let next_sentence =
+                            body.alternatives.iter().choose(&mut *self.rng.borrow_mut())
+                            .expect("Invariant violated by parser: should not be able to have an empty set of sentential form alternatives!");
+                        self.generate_non_unique_from_sentence(next_sentence.clone())
                     };
 
                     new_sentence.append(tokens_to_add);

@@ -109,6 +109,7 @@ The following sentences will be produced (not necessarily in this order):
 ```
 "we look at ourselves in the mirror."
 "y'all look at yourselves in the mirror."
+"you look at yourselves in the mirror."
 "you look at yourself in the mirror."
 "she looks at herself in the mirror."
 "I look at myself in the mirror."

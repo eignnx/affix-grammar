@@ -74,13 +74,15 @@ pub struct DataDecl {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Guard {
-    pub requirements: Vec<Pattern>,
+    // This field needs to be cheaply copiable because several parsers pass
+    // guards around and need to clone them.
+    pub requirements: Vector<Pattern>,
 }
 
 impl Guard {
     pub(crate) fn append(&mut self, other: &Self) {
         for req in &other.requirements {
-            self.requirements.push(req.clone());
+            self.requirements.push_back(req.clone());
         }
     }
 }
@@ -88,7 +90,7 @@ impl Guard {
 #[derive(Debug, PartialEq, Clone)]
 pub struct RuleBody {
     pub guard: Guard,
-    pub sentential_form: SententialForm,
+    pub alternatives: Vec<SententialForm>,
 }
 
 #[derive(Debug, PartialEq)]

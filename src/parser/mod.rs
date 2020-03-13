@@ -111,7 +111,9 @@ fn pattern(input: &[Lex]) -> Res<Pattern> {
 fn guard(input: &[Lex]) -> Res<Guard> {
     let dot = lexeme(Lex::Dot);
     let (rest, requirements) = many1(preceded(dot, pattern))(input)?;
-    let guard = Guard { requirements };
+    let guard = Guard {
+        requirements: requirements.into(),
+    };
     Ok((rest, guard))
 }
 
@@ -119,18 +121,15 @@ fn guard(input: &[Lex]) -> Res<Guard> {
 /// ```no_run
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
+fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<RuleBody> {
     move |input| {
         let pipe = lexeme(Lex::Pipe);
         let (rest, alternatives) = separated_nonempty_list(pipe, sentential_form)(input)?;
-        let bodies = alternatives
-            .into_iter()
-            .map(|form| RuleBody {
-                guard: guard.clone(),
-                sentential_form: form,
-            })
-            .collect();
-        Ok((rest, bodies))
+        let rule_body = RuleBody {
+            guard: guard.clone(),
+            alternatives,
+        };
+        Ok((rest, rule_body))
     }
 }
 
@@ -138,7 +137,7 @@ fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Rule
 /// ```no_run
 /// .foo.bar.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn guard_arrow_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
+fn guard_arrow_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<RuleBody> {
     move |input| {
         let mut curr_guard = curr_guard.clone();
         let (rest, more_guard) = guard(input)?;
@@ -168,18 +167,25 @@ fn nested_guard_rule_body(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleB
 fn guarded_rule_body(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
     move |input| {
         alt((
-            guard_arrow_rule_body(guard.clone()),
+            map(guard_arrow_rule_body(guard.clone()), |body| vec![body]),
             nested_guard_rule_body(guard.clone()),
         ))(input)
     }
 }
 
+/// Can either be:
+/// - a list of sentential-form alternatives, or
+/// - a guarded rule body like:
+///     - `.foo.bar -> some_sentential_form`, or
+///     - `.foo { nested_rule_bodies }`
 fn rule_bodies(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<RuleBody>> {
     move |input| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
         let (rest, bodies) = alt((
             map(many1(guarded_rule_body(guard.clone())), flatten),
-            sentential_form_alternatives(guard.clone()),
+            map(sentential_form_alternatives(guard.clone()), |body| {
+                vec![body]
+            }),
         ))(input)?;
         Ok((rest, bodies))
     }
@@ -280,27 +286,27 @@ fn parse_decl() {
             bodies: vec![
                 RuleBody {
                     guard: make_guard(&["singular", "1st"]),
-                    sentential_form: sentence("veux"),
+                    alternatives: vec![sentence("veux")],
                 },
                 RuleBody {
                     guard: make_guard(&["singular", "2nd"]),
-                    sentential_form: sentence("veux"),
+                    alternatives: vec![sentence("veux")],
                 },
                 RuleBody {
                     guard: make_guard(&["singular", "3rd"]),
-                    sentential_form: sentence("veut"),
+                    alternatives: vec![sentence("veut")],
                 },
                 RuleBody {
                     guard: make_guard(&["plural", "1st"]),
-                    sentential_form: sentence("voulons"),
+                    alternatives: vec![sentence("voulons")],
                 },
                 RuleBody {
                     guard: make_guard(&["plural", "2nd"]),
-                    sentential_form: sentence("voulez"),
+                    alternatives: vec![sentence("voulez")],
                 },
                 RuleBody {
                     guard: make_guard(&["plural", "3rd"]),
-                    sentential_form: sentence("voulent"),
+                    alternatives: vec![sentence("voulent")],
                 },
             ],
         }],
