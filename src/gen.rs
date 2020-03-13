@@ -1,5 +1,5 @@
 use crate::parser::lex::Lexer;
-use crate::parser::{
+use crate::parser::syntax::{
     Argument, DataName, DataVariable, DataVariant, Grammar, Pattern, RuleBody, RuleName, RuleRef,
     Token,
 };
