@@ -82,7 +82,7 @@ rule they.Number.Person.Gender =
     }
     .plural {
         .1st.* -> "we"
-        .2nd.* -> "y'all" | "you"
+        .2nd.* -> "y'all" | "you" -- Note: you can separate alternative values by a `|`.
         .3rd.* -> "they"
     }
 
