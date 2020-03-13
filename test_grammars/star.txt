@@ -14,6 +14,7 @@ data Gender = masculine | feminine | nonbinary | neutral
 rule start = they.N.P.G look.N.P.G "at" themself.N.P.G "in the mirror."
 
 -- This is a rule that knows how to conjugate the present-tense verb "to look".
+-- The `*` pattern matches any value.
 rule look.Number.Person.Gender =
     .singular.3rd.nonbinary -> "look"
     .singular.3rd.* -> "looks"
