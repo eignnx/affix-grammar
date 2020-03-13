@@ -1,9 +1,49 @@
+data Subject
+    = cow
+    | dog
+    | hedgehog
+    | marmot
 
-start --> english_sentence;
+rule start = english_sentence
 
-english_sentence --> subject "eats" object + "."
-                 --> subject "hits" object "with a bat."
-                 ;
+rule english_sentence
+    = "the" subject.S "eats" object + "."
+    | "the" subject.S "hits" object "with a bat."
+    | "the" subject.S "stumbles upon" object when + "."
+    | "look at that" subject.S1 "go. go" subject.S1 + ", go."
+    | "the" subject.S "began setting" object "on fire."
+    | english_sentence connective + "," english_sentence
+    
+rule when
+    = "while on their morning walk"
+    | "during their annual checkup"
+    | "upon stepping outdoors"
+    | "while mother is out"
+    | "under the cover of darkness"
+    | "at the corner store"
 
-subject --> "a dog" | "a cow";
-object --> "the chair" | "the couch";
+rule subject.Subject =
+    .dog -> "dog"
+    .cow -> "cow"
+    .hedgehog -> "hedgehog"
+    .marmot -> "marmot"
+
+rule object
+    = "the chair"
+    | "the couch"
+    | "the" subject.S + "'s lunch"
+    | "an extremely loud" subject.S
+    | "an obscene amount of" uncountable_thing
+    | "a steaming pile of" uncountable_thing
+    | "a lifetime supply of" uncountable_thing
+
+rule uncountable_thing = "jelly" | "tuna" | "bees" | "fruit-flies" | "medical bills" | "caramel" | "ketchup and mustard"
+
+rule connective
+    = "unfortunately"
+    | "but later that day"
+    | "with the greatest of ease"
+    | "with a twitch of it's nose"
+    | "in the blink of an eye"
+    | "having completed the task at hand"
+    | "having exhausted their options"
