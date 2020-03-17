@@ -1,6 +1,7 @@
 use crate::parser::lex::Lex;
 use crate::parser::syntax::{DataVariant, RuleDecl, RuleName};
 use thiserror::Error;
+use wasm_bindgen::JsValue;
 
 pub type Result<'buf, T = ()> = std::result::Result<T, Fault<'buf>>;
 
@@ -80,6 +81,15 @@ impl<'buf> Fault<'buf> {
     pub fn unbound_rule_name(rule_name: &str) -> Self {
         Self::UnboundRuleName {
             rule_name: rule_name.into(),
+        }
+    }
+}
+
+impl<'src> From<Fault<'src>> for JsValue {
+    fn from(fault: Fault) -> JsValue {
+        match fault {
+            // TODO: convert to serde-serialized Js objects instead of strings.
+            fault => format!("FAULT: {}", fault).into(),
         }
     }
 }
