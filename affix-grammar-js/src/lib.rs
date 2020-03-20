@@ -30,8 +30,13 @@ impl ParserContext {
         }
     }
 
-    #[wasm_bindgen]
+    #[wasm_bindgen(setter = maxTrials)]
     pub fn set_max_trials(&mut self, trials: usize) {
         self.generator.max_trials = trials;
+    }
+
+    #[wasm_bindgen(getter = maxTrials)]
+    pub fn max_trials(&self) -> usize {
+        self.generator.max_trials
     }
 }
