@@ -1,6 +1,6 @@
 use im::Vector;
 use internship::IStr;
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 /// Can appear in a case-analysis in the body of a rule.
 #[derive(Debug, Clone, PartialEq)]
@@ -71,7 +71,7 @@ pub type SententialForm = Vector<Token>;
 #[derive(Debug, PartialEq)]
 pub struct DataDecl {
     pub name: DataName,
-    pub variants: HashSet<DataVariant>,
+    pub variants: HashMap<DataVariant, Option<IStr>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]

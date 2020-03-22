@@ -159,7 +159,7 @@ impl Generator {
                 more.unwrap().name
             );
             res.variants
-                .iter()
+                .keys()
                 .choose(&mut *self.rng.borrow_mut())
                 .expect("no data decl has 0 variants")
                 .clone()
@@ -193,10 +193,40 @@ impl Generator {
             match token {
                 Token::StrLit(sym) => new_sentence.push_back(sym.into()),
                 Token::Plus => new_sentence.push_back(OutToken::Plus),
-                Token::DataVariant(DataVariant(v)) => new_sentence.push_back(OutToken::Sym(v)),
+                Token::DataVariant(variant) => {
+                    let decl = self
+                        .grammar
+                        .data_decls
+                        .iter()
+                        .filter(|decl| decl.variants.contains_key(&variant))
+                        .next()
+                        .expect("Unrecognized symbol");
+                    let backup = decl
+                        .variants
+                        .get(&variant)
+                        .unwrap()
+                        .clone()
+                        .unwrap_or(variant.0);
+                    let out = OutToken::Sym(backup);
+                    new_sentence.push_back(out);
+                }
                 Token::DataVariable(ref var) => {
-                    let DataVariant(sym) = self.value_of_variable(var, &mut state).clone();
-                    new_sentence.push_back(OutToken::Sym(sym));
+                    let variant = self.value_of_variable(var, &mut state).clone();
+                    let decl = self
+                        .grammar
+                        .data_decls
+                        .iter()
+                        .filter(|decl| decl.variants.contains_key(&variant))
+                        .next()
+                        .expect("Unrecognized symbol");
+                    let backup = decl
+                        .variants
+                        .get(&variant)
+                        .unwrap()
+                        .clone()
+                        .unwrap_or(variant.0);
+                    let out = OutToken::Sym(backup);
+                    new_sentence.push_back(out);
                 }
                 Token::RuleRef(RuleRef { ref rule, ref vars }) => {
                     // Ensure each of `vars` has a binding.

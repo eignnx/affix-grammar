@@ -4,7 +4,7 @@ use nom::{
     branch::alt,
     combinator::map,
     multi::{many0, many1, separated_nonempty_list},
-    sequence::{delimited, preceded, terminated},
+    sequence::{delimited, preceded, separated_pair, terminated},
     IResult,
 };
 
@@ -19,6 +19,16 @@ use syntax::{
 
 type Res<'a, T> = IResult<&'a [Lex], T>;
 
+fn data_variant_decl(input: &[Lex]) -> Res<(DataVariant, Option<IStr>)> {
+    alt((
+        map(lower_ident, |s| (DataVariant(s), None)),
+        map(
+            separated_pair(quoted, lexeme(Lex::At), lower_ident),
+            |(backup, name)| (DataVariant(name), Some(backup)),
+        ),
+    ))(input)
+}
+
 /// Parses:
 /// ```no_run
 /// data Foo = variant_1 | variant_2 | variant_n
@@ -27,18 +37,19 @@ fn data_decl(input: &[Lex]) -> Res<DataDecl> {
     let (rest, _) = keyword(Kw::Data)(input)?;
     let (rest, name) = upper_ident(rest)?;
     let (rest, _) = lexeme(Lex::Equals)(rest)?;
-    let (rest, variants) = separated_nonempty_list(lexeme(Lex::Pipe), lower_ident)(rest)?;
+    let (rest, variants) = separated_nonempty_list(lexeme(Lex::Pipe), data_variant_decl)(rest)?;
     let decl = DataDecl {
         name: DataName(name),
-        variants: variants.iter().map(|s| DataVariant(IStr::new(s))).collect(),
+        variants: variants.into_iter().collect(),
     };
     Ok((rest, decl))
 }
 
 #[test]
 fn parse_data_decl() {
+    use internship::IStr;
     use lex::Lexer;
-    use std::collections::HashSet;
+    use std::collections::HashMap;
     use std::iter::FromIterator;
 
     let src = "data Number = singular | plural";
@@ -49,9 +60,9 @@ fn parse_data_decl() {
     assert_eq!(rest, &[Lex::Eof]);
     let decl = DataDecl {
         name: DataName(IStr::new("Number")),
-        variants: HashSet::from_iter(vec![
-            DataVariant(IStr::new("singular")),
-            DataVariant(IStr::new("plural")),
+        variants: HashMap::from_iter(vec![
+            (DataVariant(IStr::new("singular")), None),
+            (DataVariant(IStr::new("plural")), None),
         ]),
     };
     assert_eq!(parsed, decl);
@@ -235,6 +246,7 @@ pub fn parse_from_lex_stream(input: &[Lex]) -> Res<Grammar> {
 #[test]
 fn parse_decl() {
     use im::vector;
+    use internship::IStr;
     use lex::Lexer;
 
     let src = r#"
@@ -274,6 +286,7 @@ fn parse_decl() {
                 variants: vec![IStr::new("singular"), IStr::new("plural")]
                     .into_iter()
                     .map(DataVariant)
+                    .map(|x| (x, None))
                     .collect(),
             },
             DataDecl {
@@ -281,6 +294,7 @@ fn parse_decl() {
                 variants: vec![IStr::new("1st"), IStr::new("2nd"), IStr::new("3rd")]
                     .into_iter()
                     .map(DataVariant)
+                    .map(|x| (x, None))
                     .collect(),
             },
         ],
