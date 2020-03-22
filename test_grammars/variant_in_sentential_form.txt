@@ -1,0 +1,7 @@
+data Character
+  = paul
+  | art
+  -- = "Paul Simon" @ paul
+  -- | "Art Garfunkel" @ art
+
+rule start = "Hello" @Character + ". Are you" @paul + "?"

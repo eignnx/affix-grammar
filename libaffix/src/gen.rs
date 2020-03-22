@@ -193,6 +193,11 @@ impl Generator {
             match token {
                 Token::StrLit(sym) => new_sentence.push_back(sym.into()),
                 Token::Plus => new_sentence.push_back(OutToken::Plus),
+                Token::DataVariant(DataVariant(v)) => new_sentence.push_back(OutToken::Sym(v)),
+                Token::DataVariable(ref var) => {
+                    let DataVariant(sym) = self.value_of_variable(var, &mut state).clone();
+                    new_sentence.push_back(OutToken::Sym(sym));
+                }
                 Token::RuleRef(RuleRef { ref rule, ref vars }) => {
                     // Ensure each of `vars` has a binding.
                     let arguments: Vec<DataVariant> = vars
@@ -272,7 +277,7 @@ impl Generator {
 /// function terminates so that errors that reference either of them can be
 /// propagated up.
 pub fn parse_grammar<'buf>(
-    src: &'buf String,
+    src: &'buf str,
     lexeme_buf: &'buf mut Vec<Lex>,
 ) -> fault::Result<'buf, Grammar> {
     let mut lexer = Lexer::from(src.as_ref());

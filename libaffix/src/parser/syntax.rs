@@ -61,6 +61,8 @@ pub struct RuleSig {
 pub enum Token {
     RuleRef(RuleRef),
     StrLit(IStr),
+    DataVariable(DataVariable),
+    DataVariant(DataVariant),
     Plus,
 }
 

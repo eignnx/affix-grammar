@@ -33,6 +33,7 @@ pub enum Lex {
     RBrack,
     Plus,
     Star,
+    At,
     Eof,
 }
 
@@ -117,6 +118,7 @@ fn lexeme_parser(input: &str) -> IResult<&str, WsLex> {
                 map(char(']'), |_| Lex::RBrack),
                 map(char('+'), |_| Lex::Plus),
                 map(char('*'), |_| Lex::Star),
+                map(char('@'), |_| Lex::At),
                 map(eof_, |_| Lex::Eof),
             )),
             WsLex::Lexeme,

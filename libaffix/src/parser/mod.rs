@@ -80,6 +80,12 @@ fn sentential_form(input: &[Lex]) -> Res<SententialForm> {
     let (rest, vec) = many1(alt((
         map(quoted, Token::StrLit),
         map(lexeme(Lex::Plus), |_| Token::Plus),
+        map(preceded(lexeme(Lex::At), lower_ident), |sym| {
+            Token::DataVariant(DataVariant(sym))
+        }),
+        map(preceded(lexeme(Lex::At), upper_ident), |sym| {
+            Token::DataVariable(DataVariable(sym))
+        }),
         map(rule_ref, Token::RuleRef),
     )))(input)?;
     Ok((rest, Vector::from(vec)))
