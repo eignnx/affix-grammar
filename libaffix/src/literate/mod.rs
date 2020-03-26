@@ -27,7 +27,7 @@ impl<'src> Line<'src> {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub enum Block {
     Explanation(String),
     Code(String),
