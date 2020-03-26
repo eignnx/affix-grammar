@@ -21,11 +21,11 @@ type Res<'a, T> = IResult<&'a [Lex], T>;
 
 /// Parses:
 /// EITHER
-/// ```no_run
+/// ```ignore
 /// identifier
 /// ```
 /// OR
-/// ```no_run
+/// ```ignore
 /// identifier ( sentential_form_1 | sentential_form_2 | ... )
 /// ```
 fn data_variant_decl(input: &[Lex]) -> Res<(DataVariant, Vec<SententialForm>)> {
@@ -43,7 +43,7 @@ fn data_variant_decl(input: &[Lex]) -> Res<(DataVariant, Vec<SententialForm>)> {
 }
 
 /// Parses:
-/// ```no_run
+/// ```ignore
 /// data Foo = variant_1 | variant_2 | variant_n
 /// ```
 fn data_decl(input: &[Lex]) -> Res<DataDecl> {
@@ -136,7 +136,7 @@ fn pattern(input: &[Lex]) -> Res<Pattern> {
 }
 
 /// Parses:
-/// ```no_run
+/// ```ignore
 /// .ident_1.ident_2.ident_n
 /// ```
 fn guard(input: &[Lex]) -> Res<Guard> {
@@ -149,7 +149,7 @@ fn guard(input: &[Lex]) -> Res<Guard> {
 }
 
 /// Parses:
-/// ```no_run
+/// ```ignore
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
 fn sentential_form_alternatives(input: &[Lex]) -> Res<Vec<SententialForm>> {
@@ -168,7 +168,7 @@ fn guarded_sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<
 }
 
 /// Parses:
-/// ```no_run
+/// ```ignore
 /// .foo.bar.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
 fn guard_arrow_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
@@ -182,7 +182,7 @@ fn guard_arrow_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
 }
 
 /// Parses:
-/// ```no_run
+/// ```ignore
 /// .foo.bar.baz { rule_case_1 rule_case_2 rule_case_n }
 /// ```
 fn nested_guard_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
