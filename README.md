@@ -4,6 +4,12 @@ Based on [this paper](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.5
 
 Generates sentences based on a grammar, but does not parse sentences.
 
+## Project Structure
+
+- the `libaffix` folder is a crate that defines all of the internal logic of lexer, parser, grammar datatypes, and generator.
+- the `affix-gramar-js` is a `wasm-pack` project that exports a webassembly interface for `libaffix`.
+- the main folder (`affix-grammar`) is a command line app which can be used to generate sentences based on grammar files from the command line.
+
 ## Examples
 
 ### Example Grammar 1
