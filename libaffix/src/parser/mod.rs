@@ -1,5 +1,4 @@
 use im::Vector;
-use internship::IStr;
 use nom::{
     branch::alt,
     combinator::{map, opt},
