@@ -71,7 +71,7 @@ pub type SententialForm = Vector<Token>;
 #[derive(Debug, PartialEq)]
 pub struct DataDecl {
     pub name: DataName,
-    pub variants: HashMap<DataVariant, Option<IStr>>,
+    pub variants: HashMap<DataVariant, Vec<SententialForm>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]

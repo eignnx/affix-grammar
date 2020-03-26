@@ -2,9 +2,9 @@ use im::Vector;
 use internship::IStr;
 use nom::{
     branch::alt,
-    combinator::map,
+    combinator::{map, opt},
     multi::{many0, many1, separated_nonempty_list},
-    sequence::{delimited, preceded, separated_pair, terminated},
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 
@@ -19,12 +19,25 @@ use syntax::{
 
 type Res<'a, T> = IResult<&'a [Lex], T>;
 
-fn data_variant_decl(input: &[Lex]) -> Res<(DataVariant, Option<IStr>)> {
-    alt((
-        map(lower_ident, |s| (DataVariant(s), None)),
+/// Parses:
+/// EITHER
+/// ```no_run
+/// identifier
+/// ```
+/// OR
+/// ```no_run
+/// identifier ( sentential_form_1 | sentential_form_2 | ... )
+/// ```
+fn data_variant_decl(input: &[Lex]) -> Res<(DataVariant, Vec<SententialForm>)> {
+    tuple((
+        map(lower_ident, DataVariant),
         map(
-            separated_pair(quoted, lexeme(Lex::At), lower_ident),
-            |(backup, name)| (DataVariant(name), Some(backup)),
+            opt(delimited(
+                lexeme(Lex::LParen),
+                sentential_form_alternatives,
+                lexeme(Lex::RParen),
+            )),
+            |opt_alternatives| opt_alternatives.unwrap_or_else(Vec::new),
         ),
     ))(input)
 }
@@ -61,8 +74,8 @@ fn parse_data_decl() {
     let decl = DataDecl {
         name: DataName(IStr::new("Number")),
         variants: HashMap::from_iter(vec![
-            (DataVariant(IStr::new("singular")), None),
-            (DataVariant(IStr::new("plural")), None),
+            (DataVariant(IStr::new("singular")), vec![]),
+            (DataVariant(IStr::new("plural")), vec![]),
         ]),
     };
     assert_eq!(parsed, decl);
@@ -86,7 +99,8 @@ fn rule_ref(input: &[Lex]) -> Res<RuleRef> {
     Ok((rest, reference))
 }
 
-/// A sequence of string literals, plus-signs, or rule references (calls).
+/// A sequence of string literals, plus-signs, rule references (calls), or
+/// variable references.
 fn sentential_form(input: &[Lex]) -> Res<SententialForm> {
     let (rest, vec) = many1(alt((
         map(quoted, Token::StrLit),
@@ -138,15 +152,18 @@ fn guard(input: &[Lex]) -> Res<Guard> {
 /// ```no_run
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
+fn sentential_form_alternatives(input: &[Lex]) -> Res<Vec<SententialForm>> {
+    separated_nonempty_list(lexeme(Lex::Pipe), sentential_form)(input)
+}
+
+/// Parses a set of sentential form alternatives in the context of a `Guard` and
+/// creates a `Case`.
+fn guarded_sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
     move |input| {
-        let pipe = lexeme(Lex::Pipe);
-        let (rest, alternatives) = separated_nonempty_list(pipe, sentential_form)(input)?;
-        let rule_case = Case {
+        map(sentential_form_alternatives, |alternatives| Case {
             guard: guard.clone(),
             alternatives,
-        };
-        Ok((rest, rule_case))
+        })(input)
     }
 }
 
@@ -160,7 +177,7 @@ fn guard_arrow_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
         let (rest, more_guard) = guard(input)?;
         curr_guard.append(&more_guard);
         let (rest, _) = lexeme(Lex::Arrow)(rest)?;
-        sentential_form_alternatives(curr_guard)(rest)
+        guarded_sentential_form_alternatives(curr_guard)(rest)
     }
 }
 
@@ -200,9 +217,10 @@ fn rule_cases(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
         let (rest, cases) = alt((
             map(many1(guarded_rule_case(guard.clone())), flatten),
-            map(sentential_form_alternatives(guard.clone()), |case| {
-                vec![case]
-            }),
+            map(
+                guarded_sentential_form_alternatives(guard.clone()),
+                |case| vec![case],
+            ),
         ))(input)?;
         Ok((rest, cases))
     }
@@ -286,7 +304,7 @@ fn parse_decl() {
                 variants: vec![IStr::new("singular"), IStr::new("plural")]
                     .into_iter()
                     .map(DataVariant)
-                    .map(|x| (x, None))
+                    .map(|x| (x, vec![]))
                     .collect(),
             },
             DataDecl {
@@ -294,7 +312,7 @@ fn parse_decl() {
                 variants: vec![IStr::new("1st"), IStr::new("2nd"), IStr::new("3rd")]
                     .into_iter()
                     .map(DataVariant)
-                    .map(|x| (x, None))
+                    .map(|x| (x, vec![]))
                     .collect(),
             },
         ],

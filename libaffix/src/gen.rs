@@ -166,6 +166,29 @@ impl Generator {
         })
     }
 
+    fn stringify_data_variant<'gen, 'buf>(
+        &'gen self,
+        variant: DataVariant,
+    ) -> fault::Result<'buf, Vector<OutToken>>
+    where
+        'buf: 'gen,
+    {
+        let decl = self
+            .grammar
+            .data_decls
+            .iter()
+            .filter(|decl| decl.variants.contains_key(&variant))
+            .next()
+            .expect("Unrecognized symbol");
+        let alternatives = decl.variants.get(&variant).unwrap().clone();
+        let backup = alternatives
+            .iter()
+            .choose(&mut *self.rng.borrow_mut())
+            .expect("data-variant printable alternatives cannot be empty")
+            .clone();
+        self.generate_non_unique_from_sentence(backup)
+    }
+
     fn generate_non_unique_from_start<'gen, 'buf>(
         &'gen self,
         start: RuleName,
@@ -194,39 +217,13 @@ impl Generator {
                 Token::StrLit(sym) => new_sentence.push_back(sym.into()),
                 Token::Plus => new_sentence.push_back(OutToken::Plus),
                 Token::DataVariant(variant) => {
-                    let decl = self
-                        .grammar
-                        .data_decls
-                        .iter()
-                        .filter(|decl| decl.variants.contains_key(&variant))
-                        .next()
-                        .expect("Unrecognized symbol");
-                    let backup = decl
-                        .variants
-                        .get(&variant)
-                        .unwrap()
-                        .clone()
-                        .unwrap_or(variant.0);
-                    let out = OutToken::Sym(backup);
-                    new_sentence.push_back(out);
+                    let to_append = self.stringify_data_variant(variant)?;
+                    new_sentence.append(to_append);
                 }
-                Token::DataVariable(ref var) => {
-                    let variant = self.value_of_variable(var, &mut state).clone();
-                    let decl = self
-                        .grammar
-                        .data_decls
-                        .iter()
-                        .filter(|decl| decl.variants.contains_key(&variant))
-                        .next()
-                        .expect("Unrecognized symbol");
-                    let backup = decl
-                        .variants
-                        .get(&variant)
-                        .unwrap()
-                        .clone()
-                        .unwrap_or(variant.0);
-                    let out = OutToken::Sym(backup);
-                    new_sentence.push_back(out);
+                Token::DataVariable(ref variable) => {
+                    let variant = self.value_of_variable(variable, &mut state).clone();
+                    let to_append = self.stringify_data_variant(variant)?;
+                    new_sentence.append(to_append);
                 }
                 Token::RuleRef(RuleRef { ref rule, ref vars }) => {
                     // Ensure each of `vars` has a binding.
