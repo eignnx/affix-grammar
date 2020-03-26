@@ -62,7 +62,7 @@ impl LiterateParser {
         Self { blocks, index: 0 }
     }
 
-    #[wasm_bindgen(getter)]
+    #[wasm_bindgen]
     pub fn reset(&mut self) {
         self.index = 0;
     }
