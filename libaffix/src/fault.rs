@@ -3,10 +3,38 @@ use crate::parser::syntax::{DataVariant, RuleDecl, RuleName};
 use thiserror::Error;
 use wasm_bindgen::JsValue;
 
-pub type Result<'buf, T = ()> = std::result::Result<T, Fault<'buf>>;
+pub type Result<T = ()> = std::result::Result<T, Fault>;
 
-#[derive(Error, Debug)]
-pub enum Fault<'buf> {
+#[derive(Debug, Serialize)]
+pub struct TokenizationErr {
+    description: String,
+}
+
+impl<'buf> From<nom::Err<(&'buf str, nom::error::ErrorKind)>> for TokenizationErr {
+    fn from(nom_err: nom::Err<(&'buf str, nom::error::ErrorKind)>) -> Self {
+        TokenizationErr {
+            // TODO: actually use info in `nom_err`
+            description: format!("Tokenization Error: {}", nom_err),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ParseErr {
+    description: String,
+}
+
+impl<'buf> From<nom::Err<(&'buf [Lex], nom::error::ErrorKind)>> for ParseErr {
+    fn from(nom_err: nom::Err<(&'buf [Lex], nom::error::ErrorKind)>) -> Self {
+        ParseErr {
+            // TODO: actually use info in `nom_err`
+            description: format!("Parse Error: {}", nom_err),
+        }
+    }
+}
+
+#[derive(Error, Debug, Serialize)]
+pub enum Fault {
     #[allow(dead_code)]
     #[error("No case of rule `{rule_name}` matches the current arguments: {arguments}")]
     InexhaustiveCaseAnalysis {
@@ -22,19 +50,19 @@ pub enum Fault<'buf> {
     },
 
     #[error("Tokenization failed at {0:?}")]
-    BadTokenization(nom::Err<(&'buf str, nom::error::ErrorKind)>),
+    BadTokenization(TokenizationErr),
 
     #[error("Parsing failed at {0:?}")]
-    BadParse(nom::Err<(&'buf [Lex], nom::error::ErrorKind)>),
+    BadParse(ParseErr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Binding {
     typ: String,
     value: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ArgMap(Vec<Binding>);
 
 impl std::fmt::Display for ArgMap {
@@ -49,7 +77,7 @@ impl std::fmt::Display for ArgMap {
     }
 }
 
-impl<'buf> Fault<'buf> {
+impl<'buf> Fault {
     pub fn inexhaustive_case_analysis(
         rules: &[RuleDecl],
         rule_name: &RuleName,
@@ -85,7 +113,7 @@ impl<'buf> Fault<'buf> {
     }
 }
 
-impl<'src> From<Fault<'src>> for JsValue {
+impl<'src> From<Fault> for JsValue {
     fn from(fault: Fault) -> JsValue {
         match fault {
             // TODO: convert to serde-serialized Js objects instead of strings.

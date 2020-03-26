@@ -72,7 +72,7 @@ impl Generator {
         &'gen self,
         rule_name: &RuleName,
         arguments: &Vec<DataVariant>,
-    ) -> fault::Result<'buf, Case>
+    ) -> fault::Result<Case>
     where
         'buf: 'gen,
     {
@@ -169,7 +169,7 @@ impl Generator {
     fn stringify_data_variant<'gen, 'buf>(
         &'gen self,
         variant: DataVariant,
-    ) -> fault::Result<'buf, Vector<OutToken>>
+    ) -> fault::Result<Vector<OutToken>>
     where
         'buf: 'gen,
     {
@@ -192,7 +192,7 @@ impl Generator {
     fn generate_non_unique_from_start<'gen, 'buf>(
         &'gen self,
         start: RuleName,
-    ) -> fault::Result<'buf, Vector<OutToken>>
+    ) -> fault::Result<Vector<OutToken>>
     where
         'buf: 'gen,
     {
@@ -207,7 +207,7 @@ impl Generator {
     fn generate_non_unique_from_sentence<'gen, 'buf>(
         &'gen self,
         sentence: Vector<Token>,
-    ) -> fault::Result<'buf, Vector<OutToken>> {
+    ) -> fault::Result<Vector<OutToken>> {
         let mut state = HashMap::new();
         let mut new_sentence: Vector<OutToken> = Default::default();
 
@@ -279,7 +279,7 @@ impl Generator {
         text
     }
 
-    pub fn generate<'gen, 'buf>(&'gen mut self) -> fault::Result<'buf, Option<String>>
+    pub fn generate<'gen, 'buf>(&'gen mut self) -> fault::Result<Option<String>>
     where
         'buf: 'gen,
     {
@@ -306,11 +306,15 @@ impl Generator {
 pub fn parse_grammar<'buf>(
     src: &'buf str,
     lexeme_buf: &'buf mut Vec<Lex>,
-) -> fault::Result<'buf, Grammar> {
+) -> fault::Result<Grammar> {
     let mut lexer = Lexer::from(src.as_ref());
-    let _ = lexer.to_slice(lexeme_buf).map_err(Fault::BadTokenization)?;
+    let _ = lexer
+        .to_slice(lexeme_buf)
+        .map_err(Into::into)
+        .map_err(Fault::BadTokenization)?;
     let grammar = crate::parser::parse_from_lex_stream(lexeme_buf)
         .map(|(_rest, grammar)| grammar)
+        .map_err(Into::into)
         .map_err(Fault::BadParse)?;
     Ok(grammar)
 }

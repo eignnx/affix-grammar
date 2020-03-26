@@ -128,6 +128,8 @@ dependencies = [
  "internship",
  "nom",
  "rand",
+ "serde",
+ "serde_derive",
  "thiserror",
  "wasm-bindgen",
 ]
