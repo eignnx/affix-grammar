@@ -130,7 +130,7 @@ The following sentences will be produced (not necessarily in this order):
 Use the CLI tool to generate sentences. Ensure you have [`cargo`](https://doc.rust-lang.org/cargo/getting-started/installation.html) installed beforehand.
 
 ```shell
-$ cargo run path/to/grammar-file -i
+$ cargo run -- path/to/grammar-file -i
 ```
 
 See the [`test_grammars`](https://github.com/eignnx/affix-grammar/tree/master/test_grammars) directory for example grammar files (though many are not written with current syntax).
