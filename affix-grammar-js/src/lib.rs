@@ -1,4 +1,10 @@
-use libaffix::gen::{parse_grammar, Generator};
+#[macro_use]
+extern crate serde_derive;
+
+use libaffix::{
+    gen::{parse_grammar, Generator},
+    literate,
+};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -15,9 +21,9 @@ pub struct ParserContext {
 #[wasm_bindgen]
 impl ParserContext {
     #[wasm_bindgen(constructor)]
-    pub fn new(src: String) -> Result<ParserContext, JsValue> {
+    pub fn new(src: &str) -> Result<ParserContext, JsValue> {
         let mut lexeme_buf = Vec::new();
-        let grammar = parse_grammar(&src, &mut lexeme_buf)?;
+        let grammar = parse_grammar(src, &mut lexeme_buf)?;
         let generator = Generator::new(grammar);
         Ok(ParserContext { generator })
     }
@@ -39,4 +45,49 @@ impl ParserContext {
     pub fn max_trials(&self) -> usize {
         self.generator.max_trials
     }
+}
+
+#[wasm_bindgen]
+pub struct LiterateParser {
+    blocks: Vec<literate::Block>,
+    index: usize,
+}
+
+#[wasm_bindgen]
+impl LiterateParser {
+    #[wasm_bindgen(constructor)]
+    pub fn new(src: &str) -> Self {
+        let mut blocks = vec![];
+        literate::parse(src, &mut blocks);
+        Self { blocks, index: 0 }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn reset(&mut self) {
+        self.index = 0;
+    }
+
+    #[wasm_bindgen]
+    pub fn next(&mut self) -> JsValue {
+        let done = self.index >= self.blocks.len();
+        let iter_val = if !done {
+            let block = &self.blocks[self.index];
+            self.index += 1;
+            BlockIterValue {
+                value: Some(block),
+                done,
+            }
+        } else {
+            BlockIterValue { value: None, done }
+        };
+
+        let msg = "cannot convert from Block to JsValue";
+        serde_wasm_bindgen::to_value(&iter_val).expect(msg)
+    }
+}
+
+#[derive(Serialize)]
+pub struct BlockIterValue<'a> {
+    pub value: Option<&'a literate::Block>,
+    pub done: bool,
 }

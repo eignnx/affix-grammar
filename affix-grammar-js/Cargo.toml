@@ -12,3 +12,6 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2.59"
 libaffix = { path = "../libaffix" }
+serde-wasm-bindgen = "0.1.3"
+serde = "^1.0.59"
+serde_derive = "^1.0.59"
