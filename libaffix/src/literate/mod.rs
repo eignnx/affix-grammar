@@ -1,4 +1,5 @@
 use nom::{bytes::complete::tag, re_find, IResult};
+use pulldown_cmark::{self as cmark};
 
 #[derive(Debug)]
 enum Line<'src> {
@@ -33,25 +34,45 @@ pub enum Block {
     Code(String),
 }
 
+impl Block {
+    fn map_explanation(self, f: impl Fn(String) -> String) -> Self {
+        match self {
+            Self::Explanation(explanation) => Self::Explanation(f(explanation)),
+            Self::Code(code) => Self::Code(code),
+        }
+    }
+}
+
+fn to_html(md: String) -> String {
+    let mut options = cmark::Options::empty();
+    options.insert(cmark::Options::ENABLE_STRIKETHROUGH);
+    options.insert(cmark::Options::ENABLE_TASKLISTS);
+    options.insert(cmark::Options::ENABLE_FOOTNOTES);
+    let renderer = cmark::Parser::new_ext(&md, options);
+    let mut output = String::new();
+    cmark::html::push_html(&mut output, renderer);
+    output
+}
+
 pub fn parse<'src>(src: &'src str, buf: &mut Vec<Block>) {
     let lines = src.lines();
-    let mut current_block = None;
+    let mut current_block: Option<Block> = None;
     for line in lines {
         match Line::classify(line) {
             Line::Blank => {
                 if let Some(block) = current_block.take() {
-                    buf.push(block);
+                    buf.push(block.map_explanation(to_html));
                 }
             }
             Line::Comment(line) => match &mut current_block {
                 Some(Block::Explanation(lines)) => {
-                    lines.push(' ');
+                    lines.push('\n'); // Keep the \n b/c markdown renderer needs it.
                     lines.push_str(line);
                 }
                 current_block => {
                     let new_block = Block::Explanation(line.to_string());
                     if let Some(block) = current_block.replace(new_block) {
-                        buf.push(block);
+                        buf.push(block.map_explanation(to_html));
                     }
                 }
             },
@@ -63,7 +84,7 @@ pub fn parse<'src>(src: &'src str, buf: &mut Vec<Block>) {
                 current_block => {
                     let new_block = Block::Code(line.to_string());
                     if let Some(block) = current_block.replace(new_block) {
-                        buf.push(block);
+                        buf.push(block.map_explanation(to_html));
                     }
                 }
             },
@@ -72,7 +93,7 @@ pub fn parse<'src>(src: &'src str, buf: &mut Vec<Block>) {
 
     // Push the final block into the buffer.
     if let Some(block) = current_block.take() {
-        buf.push(block);
+        buf.push(block.map_explanation(to_html));
     }
 }
 
@@ -96,9 +117,9 @@ rule foo
     assert_eq!(
         buf,
         vec![
-            Block::Explanation("this is a single block.".into()),
+            Block::Explanation("<p>this\nis\na single block.</p>\n".into()),
             Block::Code("rule foo\n  = bar\n  | baz".into()),
-            Block::Explanation("another block.".into())
+            Block::Explanation("<p>another block.</p>\n".into())
         ]
     );
 }
