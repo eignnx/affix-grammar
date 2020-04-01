@@ -110,6 +110,8 @@ rule foo
   | baz
         
 -- another block.
+
+-- This is a [link](https://www.google.com)!
 "#,
         &mut buf,
     );
@@ -119,7 +121,10 @@ rule foo
         vec![
             Block::Explanation("<p>this\nis\na single block.</p>\n".into()),
             Block::Code("rule foo\n  = bar\n  | baz".into()),
-            Block::Explanation("<p>another block.</p>\n".into())
+            Block::Explanation("<p>another block.</p>\n".into()),
+            Block::Explanation(
+                "<p>This is a <a href=\"https://www.google.com\">link</a>!</p>\n".into()
+            )
         ]
     );
 }
