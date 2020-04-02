@@ -1,4 +1,4 @@
-use nom::{bytes::complete::tag, re_find, IResult};
+use nom::{bytes::complete::tag, character::complete::char, combinator::opt, re_find, IResult};
 use pulldown_cmark::{self as cmark};
 
 #[derive(Debug)]
@@ -8,8 +8,26 @@ enum Line<'src> {
     Blank,
 }
 
+/// Parses `--` at beginning of line, then optionally (hopfully) a space `' '`.
+/// Then the rest is the possibly-empty content of the comment. This allows the
+/// line `--\n` to be parsed as an empty comment, while still stripping off the
+/// leading space character of a non-empty comment.
 fn comment(line: &str) -> IResult<&str, &str> {
-    tag("-- ")(line)
+    let (rest, _dashes) = tag("--")(line)?;
+    let (rest, _maybe_space) = opt(char(' '))(rest)?;
+    Ok(("", rest)) // Note: we're returning the `rest` of the previous parser!
+}
+
+#[test]
+fn empty_comment() {
+    let (_rest, content) = comment("--").unwrap();
+    assert_eq!(content, "");
+}
+
+#[test]
+fn strip_leading_space_from_comment() {
+    let (_rest, content) = comment("-- Word.").unwrap();
+    assert_eq!(content, "Word.");
 }
 
 fn blank(line: &str) -> IResult<&str, &str> {
@@ -18,7 +36,7 @@ fn blank(line: &str) -> IResult<&str, &str> {
 
 impl<'src> Line<'src> {
     fn classify(line: &'src str) -> Self {
-        if let Ok((content, _dashes)) = comment(line) {
+        if let Ok((_rest, content)) = comment(line) {
             Self::Comment(content)
         } else if let Ok(_) = blank(line) {
             Self::Blank
