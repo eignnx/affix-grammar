@@ -5,11 +5,10 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::char,
-    combinator::{cut, map, opt, recognize},
-    eof as nom_eof,
+    combinator::{all_consuming, cut, map, opt, recognize},
     error::{context, ParseError},
-    multi::{many0, many1, separated_list, separated_nonempty_list},
-    sequence::{delimited, preceded, terminated, tuple},
+    multi::{many0, many1, separated_nonempty_list},
+    sequence::{delimited, preceded, tuple},
     IResult,
 };
 
@@ -503,11 +502,6 @@ fn rule_decl<'i>(i: &'i str) -> RuleDecl {
     Ok((i, decl))
 }
 
-#[macro_rules_attribute(nom_parser!)]
-fn eof<'i>(i: &'i str) -> &'i str {
-    nom_eof!(i,)
-}
-
 /// The top-level parsing function of this module. Attempts to parse a
 /// [`Grammar`] from an input `&str`. Note: you'll need to provide an error type
 /// via the turbo-fish operator in order to constrain the generic error type
@@ -528,16 +522,13 @@ pub fn parse<'i>(i: &'i str) -> Grammar {
 
     let (i, decls) = context(
         "full grammar",
-        terminated(
-            space::allowed::before(many0(context(
-                "top-level definition",
-                space::allowed::after(alt((
-                    map(data_decl, Decl::Data),
-                    map(rule_decl, Decl::Rule),
-                ))),
+        all_consuming(space::allowed::before(many0(context(
+            "top-level definition",
+            space::allowed::after(alt((
+                map(data_decl, Decl::Data),
+                map(rule_decl, Decl::Rule),
             ))),
-            eof,
-        ),
+        )))),
     )(i)?;
 
     let mut grammar = Grammar::default();
