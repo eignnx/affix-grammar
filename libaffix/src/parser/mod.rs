@@ -389,18 +389,15 @@ where
 /// ```ignore
 /// .foo.bar.*.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn guard_arrow_rule_case<'i, E>(curr_guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Case, E>
+fn arrow_guard_rule_case<'i, E>(curr_guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Case, E>
 where
     E: ParseError<&'i str>,
 {
     move |i: &'i str| {
-        let mut curr_guard = curr_guard.clone();
-        let (i, more_guard) = guard(i)?;
-        curr_guard.append(&more_guard);
-        let (i, _) = space::allowed::around(tag("->"))(i)?;
+        let (i, _) = space::allowed::after(tag("->"))(i)?;
         context(
             "arrow guard rule case",
-            cut(guarded_sentential_form_alternatives(curr_guard)),
+            cut(guarded_sentential_form_alternatives(curr_guard.clone())),
         )(i)
     }
 }
@@ -416,18 +413,15 @@ where
     E: ParseError<&'i str>,
 {
     move |i: &'i str| {
-        let mut curr_guard = curr_guard.clone();
-        let (i, more_guard) = space::allowed::after(guard)(i)?;
-        curr_guard.append(&more_guard);
         let (i, cases) = delimited(
             char('{'),
             context(
                 "nested rule case",
                 cut(space::allowed::before(many0(space::allowed::after(
-                    guarded_rule_case(curr_guard),
+                    guarded_rule_case(curr_guard.clone()),
                 )))),
             ),
-            char('}'),
+            context("closing brace", cut(char('}'))),
         )(i)?;
         let cases = cases.into_iter().flatten().collect();
         Ok((i, cases))
@@ -442,16 +436,17 @@ where
 /// ```ignore
 /// .foo.bar.*.baz { rule_case_1 rule_case_2 rule_case_n }
 /// ```
-/// TODO: Performance can be increased if the common prefix `guard` is factored
-/// out so that it doesn't have to be reparsed.
-fn guarded_rule_case<'i, E>(guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
+fn guarded_rule_case<'i, E>(curr_guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
 where
     E: ParseError<&'i str>,
 {
     move |i: &'i str| {
+        let mut curr_guard = curr_guard.clone();
+        let (i, more_guard) = space::allowed::after(guard)(i)?;
+        curr_guard.append(&more_guard);
         alt((
-            map(guard_arrow_rule_case(guard.clone()), |case| vec![case]),
-            nested_guard_rule_case(guard.clone()),
+            map(arrow_guard_rule_case(curr_guard.clone()), |case| vec![case]),
+            nested_guard_rule_case(curr_guard.clone()),
         ))(i)
     }
 }
@@ -520,6 +515,7 @@ fn eof<'i>(i: &'i str) -> &'i str {
 /// debugging.
 /// ```rust
 /// use nom::error::VerboseError;
+/// # use libaffix::parser::parse;
 /// let res = parse::<VerboseError<&str>>("data Foo = bar | baz");
 /// assert!(res.is_ok());
 /// ```
