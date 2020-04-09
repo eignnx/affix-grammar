@@ -453,7 +453,7 @@ where
 
 /// Can either be:
 /// - a list of sentential-form alternatives like:
-///     - `"Once upon a time..." rest_of_story + "."`
+///     - `"Once upon a time..." rest_of_story + "." | "The end."`
 /// - or a guarded rule case like:
 ///     - `.foo.bar -> some_sentential_form`, or
 ///     - `.foo { nested_rule_cases }`
