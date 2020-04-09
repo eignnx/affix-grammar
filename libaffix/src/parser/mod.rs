@@ -563,7 +563,7 @@ fn parse_decl() {
 
     let src = r#"
 data Number = singular | plural
-data Person = 1st | 2nd | 3rd
+data Person = 1st | 2nd | 3rd -- This is a comment.
 
 rule want.Number.Person =
     .singular {
