@@ -1,14 +1,17 @@
 use im::Vector;
+// use macro_rules_attribute::macro_rules_attribute;
+use internship::IStr;
 use nom::{
     branch::alt,
-    combinator::{map, opt},
-    multi::{many0, many1, separated_nonempty_list},
+    bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
+    character::complete::char,
+    combinator::{map, opt, recognize},
+    eof as nom_eof,
+    error::ParseError,
+    multi::{many0, many1, separated_list, separated_nonempty_list},
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
-
-pub mod lex;
-use lex::{keyword, lexeme, lower_ident, quoted, upper_ident, Kw, Lex};
 
 pub mod syntax;
 use syntax::{
@@ -16,7 +19,177 @@ use syntax::{
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
 
-type Res<'a, T> = IResult<&'a [Lex], T>;
+/// Use this to define a parser. Syntax is:
+/// ```
+/// #[macro_rules_attribute(nom_parser!)]
+/// pub fn my_parser(i: &str) -> i32 {
+///     // body goes here...
+///     Ok(("", 123))
+/// }
+/// ```
+///
+/// # Benefits
+/// Defining a macro this way gives you a generic error type (anything that
+/// implements `nom::error::ParseError<&str>`).
+macro_rules! nom_parser {
+    (
+        $(#[$meta:meta])*
+        $visibility:vis fn $name:ident<$input_lifetime:lifetime>(
+            $input:ident : $Input:ty
+        ) -> $Out:ty
+            $body:block
+    ) => {
+        $(#[$meta])*
+        $visibility fn $name<$input_lifetime, E>(
+            $input: $Input
+        ) -> nom::IResult<$Input, $Out, E>
+        where
+            E: nom::error::ParseError<$Input>
+        {
+            $body
+        }
+    };
+}
+
+/// Requires one or more non-uppercase alphanumeric characters or the
+/// underscore. Examples: `foo`, `blue42`, `bar_baz_qux`, `1st`, `_`
+#[macro_rules_attribute(nom_parser!)]
+fn lower_ident<'i>(i: &'i str) -> IStr {
+    let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '_';
+    let (i, name) = take_while1(valid_char)(i)?;
+    Ok((i, IStr::new(name)))
+}
+
+/// Requires exactly one uppercase character, then zero or more alphabetic
+/// characters. Examples: `Person`, `Q`, `AbstractSingletonBean`
+#[macro_rules_attribute(nom_parser!)]
+fn upper_ident<'i>(i: &'i str) -> IStr {
+    let (i, name) = recognize(preceded(
+        take_while_m_n(1, 1, char::is_uppercase),
+        take_while(char::is_alphabetic),
+    ))(i)?;
+    Ok((i, IStr::new(name)))
+}
+
+#[macro_rules_attribute(nom_parser!)]
+fn quoted<'i>(i: &'i str) -> IStr {
+    let (i, content) = delimited(char('"'), is_not("\""), char('"'))(i)?;
+    Ok((i, IStr::new(content)))
+}
+
+mod space {
+    //! A module for parsing whitespace. Takes into account comments too.
+
+    use nom::{
+        branch::alt,
+        bytes::complete::{tag, take_till},
+        character::complete::{multispace0, multispace1},
+        combinator::recognize,
+        error::ParseError,
+        multi::many1,
+        sequence::{delimited, preceded, terminated},
+        IResult,
+    };
+
+    /// A comment starts with `--` and continues till the end of the line, or
+    /// end of input, whichever comes first. Note: this parser explicitly does
+    /// NOT consume the '\n' character at the end of lines.
+    #[macro_rules_attribute(nom_parser!)]
+    fn comment<'i>(i: &'i str) -> &'i str {
+        let (i, _) = tag("--")(i)?;
+        let (i, content) = take_till(|ch| ch == '\n')(i)?;
+        // Strip off the first space if it has one.
+        if content.starts_with(' ') {
+            Ok((i, &content[1..]))
+        } else {
+            Ok((i, content))
+        }
+    }
+
+    #[macro_rules_attribute(nom_parser!)]
+    fn ws1<'i>(i: &'i str) -> &'i str {
+        recognize(many1(alt((multispace1, comment))))(i)
+    }
+
+    #[macro_rules_attribute(nom_parser!)]
+    fn ws0<'i>(i: &'i str) -> &'i str {
+        alt((ws1, multispace0))(i)
+    }
+
+    pub mod allowed {
+        use super::*;
+
+        /// Whitespace is allowed here, but not required.
+        #[macro_rules_attribute(nom_parser!)]
+        pub fn here<'i>(i: &'i str) -> &'i str {
+            ws0(i)
+        }
+
+        /// Has potentially-empty whitespace before **and** after the captured parser.
+        pub fn around<'i, T, E, P>(parser: P) -> impl Fn(&'i str) -> IResult<&'i str, T, E>
+        where
+            E: ParseError<&'i str>,
+            P: Fn(&'i str) -> IResult<&'i str, T, E>,
+        {
+            |i: &'i str| delimited(ws0, parser, ws0)(i)
+        }
+
+        /// Has potentially-empty whitespace after the captured parser.
+        pub fn after<'i, T, E, P>(parser: P) -> impl Fn(&'i str) -> IResult<&'i str, T, E>
+        where
+            E: ParseError<&'i str>,
+            P: Fn(&'i str) -> IResult<&'i str, T, E>,
+        {
+            |i: &'i str| terminated(parser, ws0)(i)
+        }
+
+        /// Has potentially-empty whitespace before the captured parser.
+        pub fn before<'i, T, E, P>(parser: P) -> impl Fn(&'i str) -> IResult<&'i str, T, E>
+        where
+            E: ParseError<&'i str>,
+            P: Fn(&'i str) -> IResult<&'i str, T, E>,
+        {
+            |i: &'i str| preceded(ws0, parser)(i)
+        }
+    }
+
+    pub mod required {
+        use super::*;
+
+        /// Whitespace is required here.
+        #[macro_rules_attribute(nom_parser!)]
+        pub fn here<'i>(i: &'i str) -> &'i str {
+            ws1(i)
+        }
+
+        /// Has potentially-empty whitespace before **and** after the captured parser.
+        pub fn around<'i, T, E, P>(parser: P) -> impl Fn(&'i str) -> IResult<&'i str, T, E>
+        where
+            E: ParseError<&'i str>,
+            P: Fn(&'i str) -> IResult<&'i str, T, E>,
+        {
+            |i: &'i str| delimited(ws1, parser, ws1)(i)
+        }
+
+        /// Has potentially-empty whitespace after the captured parser.
+        pub fn after<'i, T, E, P>(parser: P) -> impl Fn(&'i str) -> IResult<&'i str, T, E>
+        where
+            E: ParseError<&'i str>,
+            P: Fn(&'i str) -> IResult<&'i str, T, E>,
+        {
+            |i: &'i str| terminated(parser, ws1)(i)
+        }
+
+        /// Has potentially-empty whitespace before the captured parser.
+        pub fn before<'i, T, E, P>(parser: P) -> impl Fn(&'i str) -> IResult<&'i str, T, E>
+        where
+            E: ParseError<&'i str>,
+            P: Fn(&'i str) -> IResult<&'i str, T, E>,
+        {
+            |i: &'i str| preceded(ws1, parser)(i)
+        }
+    }
+}
 
 /// Parses:
 /// EITHER
@@ -27,49 +200,49 @@ type Res<'a, T> = IResult<&'a [Lex], T>;
 /// ```ignore
 /// identifier ( sentential_form_1 | sentential_form_2 | ... )
 /// ```
-fn data_variant_decl(input: &[Lex]) -> Res<(DataVariant, Vec<SententialForm>)> {
+#[macro_rules_attribute(nom_parser!)]
+fn data_variant_decl<'i>(i: &'i str) -> (DataVariant, Vec<SententialForm>) {
     tuple((
-        map(lower_ident, DataVariant),
+        map(space::allowed::after(lower_ident), DataVariant),
         map(
             opt(delimited(
-                lexeme(Lex::LParen),
-                sentential_form_alternatives,
-                lexeme(Lex::RParen),
+                space::allowed::after(char('(')),
+                space::allowed::after(sentential_form_alternatives),
+                char(')'),
             )),
             |opt_alternatives| opt_alternatives.unwrap_or_else(Vec::new),
         ),
-    ))(input)
+    ))(i)
 }
 
 /// Parses:
 /// ```ignore
 /// data Foo = variant_1 | variant_2 | variant_n
 /// ```
-fn data_decl(input: &[Lex]) -> Res<DataDecl> {
-    let (rest, _) = keyword(Kw::Data)(input)?;
-    let (rest, name) = upper_ident(rest)?;
-    let (rest, _) = lexeme(Lex::Equals)(rest)?;
-    let (rest, variants) = separated_nonempty_list(lexeme(Lex::Pipe), data_variant_decl)(rest)?;
+#[macro_rules_attribute(nom_parser!)]
+fn data_decl<'i>(i: &'i str) -> DataDecl {
+    let (i, _) = space::required::after(tag("data"))(i)?;
+    let (i, name) = space::allowed::after(upper_ident)(i)?;
+    let (i, _) = space::allowed::after(char('='))(i)?;
+    let (i, variants) =
+        separated_nonempty_list(space::allowed::around(char('|')), data_variant_decl)(i)?;
     let decl = DataDecl {
         name: DataName(name),
         variants: variants.into_iter().collect(),
     };
-    Ok((rest, decl))
+    Ok((i, decl))
 }
 
 #[test]
 fn parse_data_decl() {
     use internship::IStr;
-    use lex::Lexer;
+    use nom::error::VerboseError;
     use std::collections::HashMap;
     use std::iter::FromIterator;
 
     let src = "data Number = singular | plural";
-    let mut lexer = Lexer::from(src);
-    let mut buf = vec![];
-    let input = lexer.to_slice(&mut buf).expect("successful tokenization");
-    let (rest, parsed) = data_decl(input).expect("successful parse");
-    assert_eq!(rest, &[Lex::Eof]);
+    let (rest, parsed) = data_decl::<VerboseError<&str>>(src).expect("successful parse");
+    assert_eq!(rest, "");
     let decl = DataDecl {
         name: DataName(IStr::new("Number")),
         variants: HashMap::from_iter(vec![
@@ -80,103 +253,136 @@ fn parse_data_decl() {
     assert_eq!(parsed, decl);
 }
 
-fn argument(input: &[Lex]) -> Res<Argument> {
+/// Arguments passed to a rule ref (call) like: `start.G1.N2` or
+/// `story.short.to_the_point`.
+#[macro_rules_attribute(nom_parser!)]
+fn argument<'i>(i: &'i str) -> Argument {
     alt((
-        map(upper_ident, |i| Argument::Variable(DataVariable(i))),
-        map(lower_ident, |i| Argument::Variant(DataVariant(i))),
-    ))(input)
+        map(upper_ident, |ident| Argument::Variable(DataVariable(ident))),
+        map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
+    ))(i)
 }
 
-/// Parsed a reference to a rule like: `start.G1.N2` or `story`.
-fn rule_ref(input: &[Lex]) -> Res<RuleRef> {
-    let (rest, name) = lower_ident(input)?;
-    let (rest, vars) = many0(preceded(lexeme(Lex::Dot), argument))(rest)?;
+/// Parsed a reference to a rule like: `start.G1.present_tense` or `story`.
+/// Note: spaces are **not** allowed adjacent to the dots (`.`).
+#[macro_rules_attribute(nom_parser!)]
+fn rule_ref<'i>(i: &'i str) -> RuleRef {
+    let (i, name) = lower_ident(i)?;
+    let (i, vars) = many0(preceded(char('.'), argument))(i)?;
     let reference = RuleRef {
         rule: RuleName(name),
         vars,
     };
-    Ok((rest, reference))
+    Ok((i, reference))
 }
 
 /// A sequence of string literals, plus-signs, rule references (calls), or
 /// variable references.
-fn sentential_form(input: &[Lex]) -> Res<SententialForm> {
-    let (rest, vec) = many1(alt((
-        map(quoted, Token::StrLit),
-        map(lexeme(Lex::Plus), |_| Token::Plus),
-        map(preceded(lexeme(Lex::At), lower_ident), |sym| {
-            Token::DataVariant(DataVariant(sym))
-        }),
-        map(preceded(lexeme(Lex::At), upper_ident), |sym| {
-            Token::DataVariable(DataVariable(sym))
-        }),
-        map(rule_ref, Token::RuleRef),
-    )))(input)?;
-    Ok((rest, Vector::from(vec)))
+/// Note: Spaces are allowed between items, but not required. This means that
+/// each individual item that could appear in a sentential form **must** have
+/// be able to be smashed up against any other (without whitespace) and be
+/// parseable.
+#[macro_rules_attribute(nom_parser!)]
+fn sentential_form<'i>(i: &'i str) -> SententialForm {
+    let (i, vec) = separated_nonempty_list(
+        space::allowed::here,
+        alt((
+            map(quoted, Token::StrLit),
+            map(char('+'), |_| Token::Plus),
+            preceded(
+                char('@'),
+                alt((
+                    map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
+                    map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
+                )),
+            ),
+            map(rule_ref, Token::RuleRef),
+        )),
+    )(i)?;
+    Ok((i, Vector::from(vec)))
 }
 
-/// Parses the (type) signature a rule like: `start.Gender.Number` or `story`. Appears
-/// at the start of a rule definition.
-fn rule_sig(input: &[Lex]) -> Res<RuleSig> {
-    let (rest, name) = lower_ident(input)?;
-    let (rest, vars) = many0(preceded(lexeme(Lex::Dot), upper_ident))(rest)?;
+/// Parses the (type) signature a rule like: `start.Gender.Number` or `story`.
+/// Appears at the start of a rule definition.
+/// Note: spaces are **not** allowed adjacent to the dots (`.`).
+#[macro_rules_attribute(nom_parser!)]
+fn rule_sig<'i>(i: &'i str) -> RuleSig {
+    let (i, name) = lower_ident(i)?;
+    let (i, vars) = many0(preceded(char('.'), map(upper_ident, DataName)))(i)?;
     let sig = RuleSig {
         name: RuleName(name),
-        parameter_types: vars.into_iter().map(DataName).collect(),
+        parameter_types: vars,
     };
-    Ok((rest, sig))
+    Ok((i, sig))
 }
 
-fn pattern(input: &[Lex]) -> Res<Pattern> {
+/// Any case-analysis pattern that can appear at the front of a case branch.
+/// Parses `ident` or `*`.
+#[macro_rules_attribute(nom_parser!)]
+fn pattern<'i>(i: &'i str) -> Pattern {
     alt((
-        map(lower_ident, |i| Pattern::Variant(DataVariant(i))),
-        map(lexeme(Lex::Star), |_| Pattern::Star),
-    ))(input)
+        map(char('*'), |_| Pattern::Star),
+        map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
+    ))(i)
 }
 
 /// Parses:
 /// ```ignore
-/// .ident_1.ident_2.ident_n
+/// .ident_1.*.ident_2.*.*.ident_n
 /// ```
-fn guard(input: &[Lex]) -> Res<Guard> {
-    let dot = lexeme(Lex::Dot);
-    let (rest, requirements) = many1(preceded(dot, pattern))(input)?;
+/// Note: spaces are **not** allowed adjacent to the dots (`.`).
+#[macro_rules_attribute(nom_parser!)]
+fn guard<'i>(i: &'i str) -> Guard {
+    let (i, requirements) = many1(preceded(char('.'), pattern))(i)?;
     let guard = Guard {
         requirements: requirements.into(),
     };
-    Ok((rest, guard))
+    Ok((i, guard))
 }
 
 /// Parses:
 /// ```ignore
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn sentential_form_alternatives(input: &[Lex]) -> Res<Vec<SententialForm>> {
-    separated_nonempty_list(lexeme(Lex::Pipe), sentential_form)(input)
+#[macro_rules_attribute(nom_parser!)]
+fn sentential_form_alternatives<'i>(i: &'i str) -> Vec<SententialForm> {
+    separated_nonempty_list(space::allowed::around(char('|')), sentential_form)(i)
 }
 
 /// Parses a set of sentential form alternatives in the context of a `Guard` and
 /// creates a `Case`.
-fn guarded_sentential_form_alternatives(guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
-    move |input| {
+/// Example:
+/// ```ignore
+/// sentential_form_1 | sentential_form_2 | sentential_form_n
+/// ```
+fn guarded_sentential_form_alternatives<'i, E>(
+    guard: Guard,
+) -> impl Fn(&'i str) -> IResult<&'i str, Case, E>
+where
+    E: ParseError<&'i str>,
+{
+    move |i: &'i str| {
         map(sentential_form_alternatives, |alternatives| Case {
             guard: guard.clone(),
             alternatives,
-        })(input)
+        })(i)
     }
 }
 
 /// Parses:
 /// ```ignore
-/// .foo.bar.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
+/// .foo.bar.*.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn guard_arrow_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
-    move |input| {
+fn guard_arrow_rule_case<'i, E>(curr_guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Case, E>
+where
+    E: ParseError<&'i str>,
+{
+    move |i: &'i str| {
         let mut curr_guard = curr_guard.clone();
-        let (rest, more_guard) = guard(input)?;
+        let (i, more_guard) = guard(i)?;
         curr_guard.append(&more_guard);
-        let (rest, _) = lexeme(Lex::Arrow)(rest)?;
-        guarded_sentential_form_alternatives(curr_guard)(rest)
+        let (i, _) = space::allowed::around(tag("->"))(i)?;
+        guarded_sentential_form_alternatives(curr_guard)(i)
     }
 }
 
@@ -184,87 +390,126 @@ fn guard_arrow_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Case> {
 /// ```ignore
 /// .foo.bar.baz { rule_case_1 rule_case_2 rule_case_n }
 /// ```
-fn nested_guard_rule_case(curr_guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
-    move |input| {
-        let lbrace = lexeme(Lex::LBrace);
-        let rbrace = lexeme(Lex::RBrace);
+fn nested_guard_rule_case<'i, E>(
+    curr_guard: Guard,
+) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
+where
+    E: ParseError<&'i str>,
+{
+    move |i: &'i str| {
         let mut curr_guard = curr_guard.clone();
-        let (rest, more_guard) = guard(input)?;
+        let (i, more_guard) = space::allowed::after(guard)(i)?;
         curr_guard.append(&more_guard);
-        let (rest, cases) = delimited(lbrace, many0(rule_cases(curr_guard)), rbrace)(rest)?;
+        let (i, cases) = delimited(
+            char('{'),
+            space::allowed::around(many0(rule_cases(curr_guard))),
+            char('}'),
+        )(i)?;
         let cases = cases.into_iter().flatten().collect();
-        Ok((rest, cases))
+        Ok((i, cases))
     }
 }
 
-fn guarded_rule_case(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
-    move |input| {
+/// Parses either:
+/// ```ignore
+/// .foo.bar.*.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
+/// ```
+/// or:
+/// ```ignore
+/// .foo.bar.*.baz { rule_case_1 rule_case_2 rule_case_n }
+/// ```
+/// TODO: Performance can be increased if the common prefix `guard` is factored
+/// out so that it doesn't have to be reparsed.
+fn guarded_rule_case<'i, E>(guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
+where
+    E: ParseError<&'i str>,
+{
+    move |i: &'i str| {
         alt((
             map(guard_arrow_rule_case(guard.clone()), |case| vec![case]),
             nested_guard_rule_case(guard.clone()),
-        ))(input)
+        ))(i)
     }
 }
 
 /// Can either be:
-/// - a list of sentential-form alternatives, or
-/// - a guarded rule case like:
+/// - a list of sentential-form alternatives like:
+///     - `"Once upon a time..." rest_of_story + "."`
+/// - or a guarded rule case like:
 ///     - `.foo.bar -> some_sentential_form`, or
 ///     - `.foo { nested_rule_cases }`
-fn rule_cases(guard: Guard) -> impl Fn(&[Lex]) -> Res<Vec<Case>> {
-    move |input| {
+fn rule_cases<'i, E>(guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
+where
+    E: ParseError<&'i str>,
+{
+    move |i: &'i str| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
-        let (rest, cases) = alt((
-            map(many1(guarded_rule_case(guard.clone())), flatten),
+        let (i, cases) = alt((
+            map(
+                separated_nonempty_list(space::required::here, guarded_rule_case(guard.clone())),
+                flatten,
+            ),
             map(
                 guarded_sentential_form_alternatives(guard.clone()),
                 |case| vec![case],
             ),
-        ))(input)?;
-        Ok((rest, cases))
+        ))(i)?;
+        Ok((i, cases))
     }
 }
 
-fn rule_decl(input: &[Lex]) -> Res<RuleDecl> {
-    let (rest, _) = keyword(Kw::Rule)(input)?;
-    let (rest, signature) = rule_sig(rest)?;
-    let (rest, _) = lexeme(Lex::Equals)(rest)?;
-    let (rest, cases) = rule_cases(Guard::default())(rest)?;
+/// Parses a rule which looks like:
+/// ```ignore
+/// rule foo.Bar.Baz = <rule body here>
+/// ```
+#[macro_rules_attribute(nom_parser!)]
+fn rule_decl<'i>(i: &'i str) -> RuleDecl {
+    let (i, _) = space::required::after(tag("rule"))(i)?;
+    let (i, signature) = rule_sig(i)?;
+    let (i, _) = space::allowed::around(char('='))(i)?;
+    let (i, cases) = rule_cases(Guard::default())(i)?;
     let decl = RuleDecl { signature, cases };
-    Ok((rest, decl))
+    Ok((i, decl))
 }
 
-pub fn parse_from_lex_stream(input: &[Lex]) -> Res<Grammar> {
-    enum Decl {
-        Data(DataDecl),
-        Rule(RuleDecl),
-    }
+#[macro_rules_attribute(nom_parser!)]
+fn eof<'i>(i: &'i str) -> &'i str {
+    nom_eof!(i,)
+}
 
-    let (rest, decls) = terminated(
-        many0(alt((
-            map(data_decl, Decl::Data),
-            map(rule_decl, Decl::Rule),
-        ))),
-        lexeme(Lex::Eof),
-    )(input)?;
-
+/// The top-level parsing function of this module. Attempts to parse a
+/// [`Grammar`] from an input `&str`. Note: you'll need to provide an error type
+/// via the turbo-fish operator in order to constrain the generic error type
+/// parameter. I recommend using [`nom::error::VerboseError<&str>`] for
+/// debugging.
+/// ```rust
+/// use nom::error::VerboseError;
+/// let res = parse::<VerboseError<&str>>("data Foo = bar | baz");
+/// assert!(res.is_ok());
+/// ```
+#[macro_rules_attribute(nom_parser!)]
+pub fn parse<'i>(i: &'i str) -> Grammar {
     let mut grammar = Grammar::default();
 
-    for decl in decls {
-        match decl {
-            Decl::Data(d) => grammar.data_decls.push(d),
-            Decl::Rule(r) => grammar.rule_decls.push(r),
-        }
-    }
+    let (i, _) = terminated(
+        space::allowed::around(separated_list(
+            space::required::here,
+            alt((
+                map(data_decl, |decl| grammar.data_decls.push(decl)),
+                map(rule_decl, |decl| grammar.rule_decls.push(decl)),
+            )),
+        )),
+        eof,
+    )(i)?;
 
-    Ok((rest, grammar))
+    Ok((i, grammar))
 }
 
 #[test]
 fn parse_decl() {
     use im::vector;
     use internship::IStr;
-    use lex::Lexer;
+    use nom::error::VerboseError;
 
     let src = r#"
     data Number = singular | plural
@@ -282,11 +527,9 @@ fn parse_decl() {
             .3rd -> "voulent"
         }
     "#;
-    let mut lexer = Lexer::from(src);
-    let mut buf = vec![];
-    lexer.to_slice(&mut buf).expect("tokenization to succeed");
-    let (rest, actual) = parse_from_lex_stream(&buf).expect("parse to succeed");
-    assert!(rest.is_empty());
+
+    let (remainder, actual) = parse::<VerboseError<&str>>(src).expect("parse to succeed");
+    assert!(remainder.is_empty());
 
     let make_guard = |v: &[&str]| Guard {
         requirements: v
