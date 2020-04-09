@@ -1,6 +1,4 @@
 use crate::fault::{self, Fault};
-use crate::parser::lex::Lex;
-use crate::parser::lex::Lexer;
 use crate::parser::syntax::{
     Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleName,
     RuleRef, Token,
@@ -300,19 +298,10 @@ impl Generator {
     }
 }
 
-/// You must keep the src string and the lexeme buffer alive until after the
-/// function terminates so that errors that reference either of them can be
-/// propagated up.
-pub fn parse_grammar<'buf>(
-    src: &'buf str,
-    lexeme_buf: &'buf mut Vec<Lex>,
-) -> fault::Result<Grammar> {
-    let mut lexer = Lexer::from(src.as_ref());
-    let _ = lexer
-        .to_slice(lexeme_buf)
-        .map_err(Into::into)
-        .map_err(Fault::BadTokenization)?;
-    let grammar = crate::parser::parse_from_lex_stream(lexeme_buf)
+/// You must keep the src string alive until after the function terminates so
+/// that errors that reference either of them can be propagated up.
+pub fn parse_grammar<'buf>(src: &'buf str) -> fault::Result<Grammar> {
+    let grammar = crate::parser::parse(src)
         .map(|(_rest, grammar)| grammar)
         .map_err(Into::into)
         .map_err(Fault::BadParse)?;

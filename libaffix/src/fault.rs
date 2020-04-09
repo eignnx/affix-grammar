@@ -1,4 +1,3 @@
-use crate::parser::lex::Lex;
 use crate::parser::syntax::{DataVariant, RuleDecl, RuleName};
 use thiserror::Error;
 use wasm_bindgen::JsValue;
@@ -24,8 +23,8 @@ pub struct ParseErr {
     description: String,
 }
 
-impl<'buf> From<nom::Err<(&'buf [Lex], nom::error::ErrorKind)>> for ParseErr {
-    fn from(nom_err: nom::Err<(&'buf [Lex], nom::error::ErrorKind)>) -> Self {
+impl<'i> From<nom::Err<(&'i str, nom::error::ErrorKind)>> for ParseErr {
+    fn from(nom_err: nom::Err<(&'i str, nom::error::ErrorKind)>) -> Self {
         ParseErr {
             // TODO: actually use info in `nom_err`
             description: format!("Parse Error: {}", nom_err),

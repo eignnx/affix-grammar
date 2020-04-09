@@ -5,9 +5,9 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::char,
-    combinator::{map, opt, recognize},
+    combinator::{cut, map, opt, recognize},
     eof as nom_eof,
-    error::ParseError,
+    error::{context, ParseError},
     multi::{many0, many1, separated_list, separated_nonempty_list},
     sequence::{delimited, preceded, terminated, tuple},
     IResult,
@@ -56,7 +56,7 @@ macro_rules! nom_parser {
 #[macro_rules_attribute(nom_parser!)]
 fn lower_ident<'i>(i: &'i str) -> IStr {
     let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '_';
-    let (i, name) = take_while1(valid_char)(i)?;
+    let (i, name) = context("lowercase identifier", take_while1(valid_char))(i)?;
     Ok((i, IStr::new(name)))
 }
 
@@ -64,10 +64,13 @@ fn lower_ident<'i>(i: &'i str) -> IStr {
 /// characters. Examples: `Person`, `Q`, `AbstractSingletonBean`
 #[macro_rules_attribute(nom_parser!)]
 fn upper_ident<'i>(i: &'i str) -> IStr {
-    let (i, name) = recognize(preceded(
-        take_while_m_n(1, 1, char::is_uppercase),
-        take_while(char::is_alphabetic),
-    ))(i)?;
+    let (i, name) = context(
+        "uppercase identifier",
+        recognize(preceded(
+            take_while_m_n(1, 1, char::is_uppercase),
+            take_while(char::is_alphabetic),
+        )),
+    )(i)?;
     Ok((i, IStr::new(name)))
 }
 
@@ -106,23 +109,13 @@ mod space {
         }
     }
 
-    #[macro_rules_attribute(nom_parser!)]
-    fn ws1<'i>(i: &'i str) -> &'i str {
-        recognize(many1(alt((multispace1, comment))))(i)
-    }
-
-    #[macro_rules_attribute(nom_parser!)]
-    fn ws0<'i>(i: &'i str) -> &'i str {
-        alt((ws1, multispace0))(i)
-    }
-
     pub mod allowed {
         use super::*;
 
         /// Whitespace is allowed here, but not required.
         #[macro_rules_attribute(nom_parser!)]
         pub fn here<'i>(i: &'i str) -> &'i str {
-            ws0(i)
+            alt((super::required::here, multispace0))(i)
         }
 
         /// Has potentially-empty whitespace before **and** after the captured parser.
@@ -131,7 +124,7 @@ mod space {
             E: ParseError<&'i str>,
             P: Fn(&'i str) -> IResult<&'i str, T, E>,
         {
-            |i: &'i str| delimited(ws0, parser, ws0)(i)
+            move |i: &'i str| delimited(here, &parser, here)(i)
         }
 
         /// Has potentially-empty whitespace after the captured parser.
@@ -140,7 +133,7 @@ mod space {
             E: ParseError<&'i str>,
             P: Fn(&'i str) -> IResult<&'i str, T, E>,
         {
-            |i: &'i str| terminated(parser, ws0)(i)
+            move |i: &'i str| terminated(&parser, here)(i)
         }
 
         /// Has potentially-empty whitespace before the captured parser.
@@ -149,7 +142,7 @@ mod space {
             E: ParseError<&'i str>,
             P: Fn(&'i str) -> IResult<&'i str, T, E>,
         {
-            |i: &'i str| preceded(ws0, parser)(i)
+            move |i: &'i str| preceded(here, &parser)(i)
         }
     }
 
@@ -159,7 +152,7 @@ mod space {
         /// Whitespace is required here.
         #[macro_rules_attribute(nom_parser!)]
         pub fn here<'i>(i: &'i str) -> &'i str {
-            ws1(i)
+            recognize(many1(alt((multispace1, comment))))(i)
         }
 
         /// Has potentially-empty whitespace before **and** after the captured parser.
@@ -168,7 +161,7 @@ mod space {
             E: ParseError<&'i str>,
             P: Fn(&'i str) -> IResult<&'i str, T, E>,
         {
-            |i: &'i str| delimited(ws1, parser, ws1)(i)
+            move |i: &'i str| delimited(here, &parser, here)(i)
         }
 
         /// Has potentially-empty whitespace after the captured parser.
@@ -177,7 +170,7 @@ mod space {
             E: ParseError<&'i str>,
             P: Fn(&'i str) -> IResult<&'i str, T, E>,
         {
-            |i: &'i str| terminated(parser, ws1)(i)
+            move |i: &'i str| terminated(&parser, here)(i)
         }
 
         /// Has potentially-empty whitespace before the captured parser.
@@ -186,7 +179,7 @@ mod space {
             E: ParseError<&'i str>,
             P: Fn(&'i str) -> IResult<&'i str, T, E>,
         {
-            |i: &'i str| preceded(ws1, parser)(i)
+            move |i: &'i str| preceded(here, &parser)(i)
         }
     }
 }
@@ -221,15 +214,25 @@ fn data_variant_decl<'i>(i: &'i str) -> (DataVariant, Vec<SententialForm>) {
 /// ```
 #[macro_rules_attribute(nom_parser!)]
 fn data_decl<'i>(i: &'i str) -> DataDecl {
-    let (i, _) = space::required::after(tag("data"))(i)?;
-    let (i, name) = space::allowed::after(upper_ident)(i)?;
-    let (i, _) = space::allowed::after(char('='))(i)?;
-    let (i, variants) =
-        separated_nonempty_list(space::allowed::around(char('|')), data_variant_decl)(i)?;
+    let (i, (name, variants)) = preceded(
+        space::required::after(tag("data")),
+        context(
+            "data variant definition",
+            cut(tuple((
+                space::allowed::after(upper_ident),
+                preceded(
+                    space::allowed::after(char('=')),
+                    separated_nonempty_list(space::allowed::around(char('|')), data_variant_decl),
+                ),
+            ))),
+        ),
+    )(i)?;
+
     let decl = DataDecl {
         name: DataName(name),
         variants: variants.into_iter().collect(),
     };
+
     Ok((i, decl))
 }
 
@@ -284,20 +287,23 @@ fn rule_ref<'i>(i: &'i str) -> RuleRef {
 /// parseable.
 #[macro_rules_attribute(nom_parser!)]
 fn sentential_form<'i>(i: &'i str) -> SententialForm {
-    let (i, vec) = separated_nonempty_list(
-        space::allowed::here,
-        alt((
-            map(quoted, Token::StrLit),
-            map(char('+'), |_| Token::Plus),
-            preceded(
-                char('@'),
-                alt((
-                    map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
-                    map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
-                )),
-            ),
-            map(rule_ref, Token::RuleRef),
-        )),
+    let (i, vec) = context(
+        "sentential form",
+        separated_nonempty_list(
+            space::allowed::here,
+            alt((
+                map(quoted, Token::StrLit),
+                map(char('+'), |_| Token::Plus),
+                preceded(
+                    char('@'),
+                    alt((
+                        map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
+                        map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
+                    )),
+                ),
+                context("rule reference", map(rule_ref, Token::RuleRef)),
+            )),
+        ),
     )(i)?;
     Ok((i, Vector::from(vec)))
 }
@@ -307,12 +313,19 @@ fn sentential_form<'i>(i: &'i str) -> SententialForm {
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
 #[macro_rules_attribute(nom_parser!)]
 fn rule_sig<'i>(i: &'i str) -> RuleSig {
-    let (i, name) = lower_ident(i)?;
-    let (i, vars) = many0(preceded(char('.'), map(upper_ident, DataName)))(i)?;
+    let (i, (name, vars)) = context(
+        "rule signature",
+        tuple((
+            lower_ident,
+            many0(preceded(char('.'), map(upper_ident, DataName))),
+        )),
+    )(i)?;
+
     let sig = RuleSig {
         name: RuleName(name),
         parameter_types: vars,
     };
+
     Ok((i, sig))
 }
 
@@ -320,10 +333,13 @@ fn rule_sig<'i>(i: &'i str) -> RuleSig {
 /// Parses `ident` or `*`.
 #[macro_rules_attribute(nom_parser!)]
 fn pattern<'i>(i: &'i str) -> Pattern {
-    alt((
-        map(char('*'), |_| Pattern::Star),
-        map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
-    ))(i)
+    context(
+        "pattern",
+        alt((
+            map(char('*'), |_| Pattern::Star),
+            map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
+        )),
+    )(i)
 }
 
 /// Parses:
@@ -382,7 +398,10 @@ where
         let (i, more_guard) = guard(i)?;
         curr_guard.append(&more_guard);
         let (i, _) = space::allowed::around(tag("->"))(i)?;
-        guarded_sentential_form_alternatives(curr_guard)(i)
+        context(
+            "arrow guard rule case",
+            cut(guarded_sentential_form_alternatives(curr_guard)),
+        )(i)
     }
 }
 
@@ -402,7 +421,12 @@ where
         curr_guard.append(&more_guard);
         let (i, cases) = delimited(
             char('{'),
-            space::allowed::around(many0(rule_cases(curr_guard))),
+            context(
+                "nested rule case",
+                cut(space::allowed::before(many0(space::allowed::after(
+                    guarded_rule_case(curr_guard),
+                )))),
+            ),
             char('}'),
         )(i)?;
         let cases = cases.into_iter().flatten().collect();
@@ -438,7 +462,7 @@ where
 /// - or a guarded rule case like:
 ///     - `.foo.bar -> some_sentential_form`, or
 ///     - `.foo { nested_rule_cases }`
-fn rule_cases<'i, E>(guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
+fn top_level_rule_cases<'i, E>(guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
 where
     E: ParseError<&'i str>,
 {
@@ -450,7 +474,10 @@ where
                 flatten,
             ),
             map(
-                guarded_sentential_form_alternatives(guard.clone()),
+                context(
+                    "sentential form rule body",
+                    guarded_sentential_form_alternatives(guard.clone()),
+                ),
                 |case| vec![case],
             ),
         ))(i)?;
@@ -464,10 +491,19 @@ where
 /// ```
 #[macro_rules_attribute(nom_parser!)]
 fn rule_decl<'i>(i: &'i str) -> RuleDecl {
-    let (i, _) = space::required::after(tag("rule"))(i)?;
-    let (i, signature) = rule_sig(i)?;
-    let (i, _) = space::allowed::around(char('='))(i)?;
-    let (i, cases) = rule_cases(Guard::default())(i)?;
+    let (i, (signature, cases)) = preceded(
+        space::required::after(tag("rule")),
+        context(
+            "rule definition",
+            cut(tuple((
+                rule_sig,
+                preceded(
+                    space::allowed::around(char('=')),
+                    top_level_rule_cases(Guard::default()),
+                ),
+            ))),
+        ),
+    )(i)?;
     let decl = RuleDecl { signature, cases };
     Ok((i, decl))
 }
@@ -489,21 +525,39 @@ fn eof<'i>(i: &'i str) -> &'i str {
 /// ```
 #[macro_rules_attribute(nom_parser!)]
 pub fn parse<'i>(i: &'i str) -> Grammar {
+    enum Decl {
+        Data(DataDecl),
+        Rule(RuleDecl),
+    }
+
+    let (i, decls) = context(
+        "full grammar",
+        terminated(
+            space::allowed::before(many0(context(
+                "top-level definition",
+                space::allowed::after(alt((
+                    map(data_decl, Decl::Data),
+                    map(rule_decl, Decl::Rule),
+                ))),
+            ))),
+            eof,
+        ),
+    )(i)?;
+
     let mut grammar = Grammar::default();
 
-    let (i, _) = terminated(
-        space::allowed::around(separated_list(
-            space::required::here,
-            alt((
-                map(data_decl, |decl| grammar.data_decls.push(decl)),
-                map(rule_decl, |decl| grammar.rule_decls.push(decl)),
-            )),
-        )),
-        eof,
-    )(i)?;
+    for decl in decls {
+        match decl {
+            Decl::Data(decl) => grammar.data_decls.push(decl),
+            Decl::Rule(decl) => grammar.rule_decls.push(decl),
+        }
+    }
 
     Ok((i, grammar))
 }
+
+#[cfg(test)]
+mod report;
 
 #[test]
 fn parse_decl() {
@@ -512,23 +566,29 @@ fn parse_decl() {
     use nom::error::VerboseError;
 
     let src = r#"
-    data Number = singular | plural
-    data Person = 1st | 2nd | 3rd
+data Number = singular | plural
+data Person = 1st | 2nd | 3rd
 
-    rule want.Number.Person =
-        .singular {
-            .1st -> "veux"
-            .2nd -> "veux"
-            .3rd -> "veut"
-        }
-        .plural {
-            .1st -> "voulons"
-            .2nd -> "voulez"
-            .3rd -> "voulent"
-        }
+rule want.Number.Person =
+    .singular {
+        .1st -> "veux"
+        .2nd -> "veux"
+        .3rd -> "veut"
+    }
+    .plural {
+        .1st -> "voulons"
+        .2nd -> "voulez"
+        .3rd -> "voulent"
+    }
     "#;
 
-    let (remainder, actual) = parse::<VerboseError<&str>>(src).expect("parse to succeed");
+    let (remainder, actual) = match parse::<VerboseError<&str>>(src) {
+        Ok(pair) => pair,
+        Err(nom::Err::Failure(e)) | Err(nom::Err::Error(e)) => {
+            panic!("Parse Failure:\n{}", report::report_error(src, e));
+        }
+        _ => unimplemented!(),
+    };
     assert!(remainder.is_empty());
 
     let make_guard = |v: &[&str]| Guard {
