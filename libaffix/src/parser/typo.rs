@@ -1,6 +1,6 @@
 #[derive(Debug, Clone)]
 pub enum Typo {
-    Custom(String),
+    Custom(&'static str, String),
     Context(&'static str),
     Expected(Vec<char>),
     Nom(nom::error::ErrorKind),
@@ -72,10 +72,11 @@ impl<'i> Report<&'i str> {
 
             if input.is_empty() {
                 match kind {
-                    Typo::Custom(msg) => write!(
+                    Typo::Custom(title, msg) => write!(
                         &mut result,
-                        "Syntax Error #{}: {msg}",
+                        "Syntax Error #{} - {title}: {msg}",
                         i + 1,
+                        title = title,
                         msg = msg,
                     ),
                     Typo::Expected(chars) => write!(
@@ -123,14 +124,15 @@ impl<'i> Report<&'i str> {
                 let column_number = line.offset(substring) + 1;
 
                 match kind {
-                    Typo::Custom(msg) => write!(
+                    Typo::Custom(title, msg) => write!(
                         &mut result,
-                        "Syntax Error #{i}:\n\
+                        "Syntax Error #{i}: {title}\n\
                         {space:4}|\n\
                         {line_number:<4}| {line}\n\
                         {space:4}| {caret:>column$}\n\
                         {space:4}= {msg}\n\n",
                         i = i+1,
+                        title = title,
                         line_number = line_number,
                         line = line,
                         caret = '^',

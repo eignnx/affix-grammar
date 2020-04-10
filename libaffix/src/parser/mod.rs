@@ -8,7 +8,7 @@ use internship::IStr;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
-    character::complete::char,
+    character::complete::{anychar, char, one_of},
     combinator::{all_consuming, cut, map, opt, recognize, verify},
     error::context,
     multi::{many0, many1, separated_nonempty_list},
@@ -20,8 +20,9 @@ use syntax::{
     Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
+use typo::{Report, Typo};
 
-type Res<'input, Output> = IResult<&'input str, Output, typo::Report<&'input str>>;
+type Res<'input, Output> = IResult<&'input str, Output, Report<&'input str>>;
 
 /// Requires one or more non-uppercase alphanumeric characters or the
 /// underscore. Examples: `foo`, `blue42`, `bar_baz_qux`, `1st`, `_`
@@ -130,11 +131,14 @@ fn argument(i: &str) -> Res<Argument> {
         map(upper_ident, |ident| Argument::Variable(DataVariable(ident))),
         map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
         failure_case(char('*'), |_| {
-            typo::Typo::Custom(format!(
-                "I'm not supposed to allow the '*' character here. Please \
+            Typo::Custom(
+                "use of '*' in argument position",
+                format!(
+                    "I'm not supposed to allow the '*' character here. Please \
                 spell out a unique variable name if you'd like to pass a \
                 random value here."
-            ))
+                ),
+            )
         }),
     ))(i)
 }
@@ -167,10 +171,35 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                 map(char('+'), |_| Token::Plus),
                 preceded(
                     char('@'),
-                    alt((
-                        map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
-                        map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
-                    )),
+                    context(
+                        "data interpolation",
+                        cut(alt((
+                            map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
+                            map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
+                            failure_case(alt((tag("rule"), tag("data"))), |kw| {
+                                Typo::Custom(
+                                    "unexpected keyword",
+                                    format!(
+                                        "I can't let you use the '{}' keyword here. \
+                                        It's a reserved word.",
+                                        kw,
+                                    ),
+                                )
+                            }),
+                            failure_case(anychar, |ch| {
+                                Typo::Custom(
+                                    "bad value for data interpolation",
+                                    format!(
+                                        "I was expecting either the lowercase \
+                                        name of a data variant value, or the \
+                                        uppercase name of a data variant type. \
+                                        Instead I got {:?}.",
+                                        ch,
+                                    ),
+                                )
+                            }),
+                        ))),
+                    ),
                 ),
                 context("rule reference", map(rule_ref, Token::RuleRef)),
             )),
@@ -207,6 +236,17 @@ fn pattern(i: &str) -> Res<Pattern> {
         alt((
             map(char('*'), |_| Pattern::Star),
             map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
+            failure_case(upper_ident, |_| {
+                Typo::Custom(
+                    "unsupported use of variable in pattern",
+                    format!(
+                        "I see you're trying to use a variable in a guard pattern! \
+                    Cool! Unfortunately I don't know how to handle that \
+                    ...yet. See this issue if you want to help implement this \
+                    behavior: https://github.com/eignnx/affix-grammar/issues/3"
+                    ),
+                )
+            }),
         )),
     )(i)
 }
@@ -298,6 +338,15 @@ fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<C
         alt((
             map(arrow_guard_rule_case(curr_guard.clone()), |case| vec![case]),
             nested_guard_rule_case(curr_guard.clone()),
+            failure_case(anychar, |_| {
+                Typo::Custom(
+                    "malformed rule case body",
+                    format!(
+                        "I was expecting either '->' or '{{' here because I just \
+                    saw a pattern guard."
+                    ),
+                )
+            }),
         ))(i)
     }
 }
@@ -359,10 +408,9 @@ fn failure_case<'i, Free, Parsed, P, F>(
 ) -> impl Fn(&'i str) -> Res<'i, Free>
 where
     P: Fn(&'i str) -> Res<'i, Parsed>,
-    F: Fn(Parsed) -> typo::Typo,
+    F: Fn(Parsed) -> Typo,
 {
     use nom::Err::{Error, Failure, Incomplete};
-    use typo::Report;
     move |i: &'i str| match parser(i) {
         Ok((_, x)) => Err(Failure(Report::from((i, err_constructor(x))))),
         Err(Failure(e)) => Err(Failure(e)),
@@ -372,10 +420,7 @@ where
 }
 
 /// The top-level parsing function of this module. Attempts to parse a
-/// [`Grammar`] from an input `&str`. Note: you'll need to provide an error type
-/// via the turbo-fish operator in order to constrain the generic error type
-/// parameter. I recommend using [`nom::error::VerboseError<&str>`] for
-/// debugging.
+/// [`Grammar`] from an input `&str`.
 /// ```rust
 /// use nom::error::VerboseError;
 /// # use libaffix::parser::parse;
@@ -389,28 +434,61 @@ pub fn parse(i: &str) -> Res<Grammar> {
     }
 
     let malformed_keyword = failure_case(recognize(rule_sig), |txt| {
-        typo::Typo::Custom(format!(
-            "I expected either the 'data' or 'rule' keyword here, but I got '{}'.",
-            txt,
-        ))
+        Typo::Custom(
+            "malformed keyword",
+            format!(
+                "I expected either the 'data' or 'rule' keyword here, but I \
+                got '{}'.",
+                txt,
+            ),
+        )
     });
 
     let misplaced_data_decl = failure_case(recognize(upper_ident), |_| {
-        typo::Typo::Custom(format!("Is this the beginning of a data declaration? If so, it needs to begin with the 'data' keyword."))
+        Typo::Custom(
+            "misplaced data definition",
+            format!(
+                "Is this the beginning of a data declaration? If so, it needs \
+                to begin with the 'data' keyword."
+            ),
+        )
     });
 
-    let (i, decls) = context(
+    let extra_closing_brace = failure_case(char('}'), |_| {
+        Typo::Custom(
+            "extra closing brace",
+            format!(
+                "I think you have an extra closing brace ('}}') here. No big \
+                deal, it happens!"
+            ),
+        )
+    });
+
+    let extraneous_char = failure_case(one_of("!@#$%^&*()[]{|<>?/~`\"\\:;="), |ch| {
+        Typo::Custom(
+            "extraneous character after top-level definition",
+            format!(
+                "I got some weird character {:?} here. I'm not sure what's \
+                going on. Do you?",
+                ch,
+            ),
+        )
+    });
+
+    let (i, decls) = all_consuming(space::allowed::before(context(
         "full grammar",
-        all_consuming(space::allowed::before(many0(context(
+        many0(context(
             "top-level definition",
             space::allowed::after(alt((
                 map(data_decl, Decl::Data),
                 map(rule_decl, Decl::Rule),
                 malformed_keyword,
                 misplaced_data_decl,
+                extra_closing_brace,
+                extraneous_char,
             ))),
-        )))),
-    )(i)?;
+        )),
+    )))(i)?;
 
     let mut grammar = Grammar::default();
 
