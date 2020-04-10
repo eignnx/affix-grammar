@@ -9,7 +9,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::char,
-    combinator::{all_consuming, cut, map, opt, recognize},
+    combinator::{all_consuming, cut, map, opt, recognize, verify},
     error::context,
     multi::{many0, many1, separated_nonempty_list},
     sequence::{delimited, preceded, tuple},
@@ -27,7 +27,12 @@ type Res<'input, Output> = IResult<&'input str, Output, typo::Report<&'input str
 /// underscore. Examples: `foo`, `blue42`, `bar_baz_qux`, `1st`, `_`
 fn lower_ident(i: &str) -> Res<IStr> {
     let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '_';
-    let (i, name) = context("lowercase identifier", take_while1(valid_char))(i)?;
+    let (i, name) = context(
+        "lowercase identifier",
+        verify(take_while1(valid_char), |txt: &str| {
+            txt != "data" && txt != "rule"
+        }),
+    )(i)?;
     Ok((i, IStr::new(name)))
 }
 
