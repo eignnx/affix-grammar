@@ -63,6 +63,8 @@ impl<I> nom::error::ParseError<I> for Report<I> {
 use nom::Offset;
 use std::fmt::Write;
 
+const CARET: char = '↑';
+
 impl<'i> Report<&'i str> {
     pub fn report(&self, input: &'i str) -> String {
         let mut result = String::new();
@@ -135,7 +137,7 @@ impl<'i> Report<&'i str> {
                         title = title,
                         line_number = line_number,
                         line = line,
-                        caret = '^',
+                        caret = CARET,
                         column = column_number,
                         space = "",
                         msg = msg,
@@ -153,7 +155,7 @@ impl<'i> Report<&'i str> {
                                 i = i + 1,
                                 line_number = line_number,
                                 line = line,
-                                caret = '^',
+                                caret = CARET,
                                 column = column_number,
                                 expected = chars,
                                 actual = actual,
@@ -170,7 +172,7 @@ impl<'i> Report<&'i str> {
                                 i = i + 1,
                                 line_number = line_number,
                                 line = line,
-                                caret = '^',
+                                caret = CARET,
                                 column = column_number,
                                 expected = chars,
                                 space = "",
@@ -188,7 +190,7 @@ impl<'i> Report<&'i str> {
                         line_number = line_number,
                         context = s,
                         line = line,
-                        caret = '^',
+                        caret = CARET,
                         column = column_number,
                         space = "",
                     ),
@@ -203,7 +205,7 @@ impl<'i> Report<&'i str> {
                         line_number = line_number,
                         nom_err = e,
                         line = line,
-                        caret = '^',
+                        caret = CARET,
                         column = column_number,
                         nom_err_desc = e.description().to_ascii_lowercase(),
                         space = "",
