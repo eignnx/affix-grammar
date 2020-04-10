@@ -1,3 +1,7 @@
+mod space;
+pub mod syntax;
+pub mod typo;
+
 use im::Vector;
 // use macro_rules_attribute::macro_rules_attribute;
 use internship::IStr;
@@ -12,8 +16,6 @@ use nom::{
     IResult,
 };
 
-mod space;
-pub mod syntax;
 use syntax::{
     Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
@@ -440,14 +442,10 @@ pub fn parse<'i>(i: &'i str) -> Grammar {
     Ok((i, grammar))
 }
 
-#[cfg(test)]
-mod report;
-
 #[test]
 fn parse_decl() {
     use im::vector;
     use internship::IStr;
-    use nom::error::VerboseError;
 
     let src = r#"
 data Number = singular | plural
@@ -464,12 +462,12 @@ rule want.Number.Person =
         .2nd -> "voulez"
         .3rd -> "voulent"
     }
-    "#;
+    --comment at veeerry end"#;
 
-    let (remainder, actual) = match parse::<VerboseError<&str>>(src) {
+    let (remainder, actual) = match parse::<typo::Report<&str>>(src) {
         Ok(pair) => pair,
         Err(nom::Err::Failure(e)) | Err(nom::Err::Error(e)) => {
-            panic!("Parse Failure:\n{}", report::report_error(src, e));
+            panic!("Parse Failure:\n{}", e.report(src));
         }
         _ => unimplemented!(),
     };
