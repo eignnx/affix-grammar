@@ -503,7 +503,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
 }
 
 #[test]
-fn parse_decl() {
+fn parse_full_grammar() {
     use im::vector;
     use internship::IStr;
 
