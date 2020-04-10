@@ -129,6 +129,13 @@ fn argument(i: &str) -> Res<Argument> {
     alt((
         map(upper_ident, |ident| Argument::Variable(DataVariable(ident))),
         map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
+        failure_case(char('*'), |_| {
+            typo::Typo::Custom(format!(
+                "I'm not supposed to allow the '*' character here. Please \
+                spell out a unique variable name if you'd like to pass a \
+                random value here."
+            ))
+        }),
     ))(i)
 }
 
@@ -372,7 +379,7 @@ where
 /// ```rust
 /// use nom::error::VerboseError;
 /// # use libaffix::parser::parse;
-/// let res = parse::<VerboseError<&str>>("data Foo = bar | baz");
+/// let res = parse("data Foo = bar | baz");
 /// assert!(res.is_ok());
 /// ```
 pub fn parse(i: &str) -> Res<Grammar> {
@@ -426,6 +433,8 @@ fn parse_decl() {
 data Number = singular | plural
 data Person = 1st | 2nd | 3rd -- This is a comment.
 
+rule start = "I" want.singular.1st "YOU!"
+
 rule want.Number.Person =
     .singular {
         .1st -> "veux"
@@ -475,38 +484,63 @@ rule want.Number.Person =
                     .collect(),
             },
         ],
-        rule_decls: vec![RuleDecl {
-            signature: RuleSig {
-                name: RuleName(IStr::new("want")),
-                parameter_types: vec![DataName(IStr::new("Number")), DataName(IStr::new("Person"))],
+        rule_decls: vec![
+            RuleDecl {
+                signature: RuleSig {
+                    name: RuleName(IStr::new("start")),
+                    parameter_types: vec![],
+                },
+                cases: vec![Case {
+                    guard: make_guard(&[]),
+                    alternatives: vec![vector![
+                        Token::StrLit(IStr::new("I")),
+                        Token::RuleRef(RuleRef {
+                            rule: RuleName(IStr::new("want")),
+                            vars: vec![
+                                Argument::Variant(DataVariant(IStr::new("singular"))),
+                                Argument::Variant(DataVariant(IStr::new("1st")))
+                            ]
+                        }),
+                        Token::StrLit(IStr::new("YOU!"))
+                    ]],
+                }],
             },
-            cases: vec![
-                Case {
-                    guard: make_guard(&["singular", "1st"]),
-                    alternatives: vec![sentence("veux")],
+            RuleDecl {
+                signature: RuleSig {
+                    name: RuleName(IStr::new("want")),
+                    parameter_types: vec![
+                        DataName(IStr::new("Number")),
+                        DataName(IStr::new("Person")),
+                    ],
                 },
-                Case {
-                    guard: make_guard(&["singular", "2nd"]),
-                    alternatives: vec![sentence("veux")],
-                },
-                Case {
-                    guard: make_guard(&["singular", "3rd"]),
-                    alternatives: vec![sentence("veut")],
-                },
-                Case {
-                    guard: make_guard(&["plural", "1st"]),
-                    alternatives: vec![sentence("voulons")],
-                },
-                Case {
-                    guard: make_guard(&["plural", "2nd"]),
-                    alternatives: vec![sentence("voulez")],
-                },
-                Case {
-                    guard: make_guard(&["plural", "3rd"]),
-                    alternatives: vec![sentence("voulent")],
-                },
-            ],
-        }],
+                cases: vec![
+                    Case {
+                        guard: make_guard(&["singular", "1st"]),
+                        alternatives: vec![sentence("veux")],
+                    },
+                    Case {
+                        guard: make_guard(&["singular", "2nd"]),
+                        alternatives: vec![sentence("veux")],
+                    },
+                    Case {
+                        guard: make_guard(&["singular", "3rd"]),
+                        alternatives: vec![sentence("veut")],
+                    },
+                    Case {
+                        guard: make_guard(&["plural", "1st"]),
+                        alternatives: vec![sentence("voulons")],
+                    },
+                    Case {
+                        guard: make_guard(&["plural", "2nd"]),
+                        alternatives: vec![sentence("voulez")],
+                    },
+                    Case {
+                        guard: make_guard(&["plural", "3rd"]),
+                        alternatives: vec![sentence("voulent")],
+                    },
+                ],
+            },
+        ],
     };
 
     assert_eq!(actual, expected);
