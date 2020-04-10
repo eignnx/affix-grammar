@@ -1,13 +1,20 @@
 #[derive(Debug, Clone)]
 pub enum Typo {
-    Context(String),
+    Custom(String),
+    Context(&'static str),
     Expected(Vec<char>),
     Nom(nom::error::ErrorKind),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Report<I> {
     typos: Vec<(I, Typo)>,
+}
+
+impl<I> From<(I, Typo)> for Report<I> {
+    fn from(tuple: (I, Typo)) -> Self {
+        Self { typos: vec![tuple] }
+    }
 }
 
 impl<I> nom::error::ParseError<I> for Report<I> {
@@ -48,7 +55,7 @@ impl<I> nom::error::ParseError<I> for Report<I> {
     }
 
     fn add_context(input: I, ctx: &'static str, mut other: Self) -> Self {
-        other.typos.push((input, Typo::Context(ctx.into())));
+        other.typos.push((input, Typo::Context(ctx)));
         other
     }
 }
@@ -65,23 +72,29 @@ impl<'i> Report<&'i str> {
 
             if input.is_empty() {
                 match kind {
+                    Typo::Custom(msg) => write!(
+                        &mut result,
+                        "Syntax Error #{}: {msg}",
+                        i + 1,
+                        msg = msg,
+                    ),
                     Typo::Expected(chars) => write!(
                         &mut result,
-                        "{}: I expected one of {:?}, but got empty input.\n\n",
+                        "Syntax Error #{}: I expected one of {:?}, but got empty input.\n\n",
                         i + 1,
-                        chars
+                        chars,
                     ),
                     Typo::Context(s) => write!(
                         &mut result,
-                        "{}: I was trying to parse a {}, but got empty input.\n\n",
+                        "Syntax Error #{}: I was trying to parse a {}, but got empty input.\n\n",
                         i + 1,
-                        s
+                        s,
                     ),
                     Typo::Nom(e) => write!(
                         &mut result,
-                        "{}: I was trying to parse a {:?}, but got empty input.\n\n",
+                        "Syntax Error #{}: I was trying to parse a {:?}, but got empty input.\n\n",
                         i + 1,
-                        e
+                        e,
                     ),
                 }
             } else {
@@ -110,6 +123,22 @@ impl<'i> Report<&'i str> {
                 let column_number = line.offset(substring) + 1;
 
                 match kind {
+                    Typo::Custom(msg) => write!(
+                        &mut result,
+                        "Syntax Error #{i}:\n\
+                        {space:4}|\n\
+                        {line_number:<4}| {line}\n\
+                        {space:4}| {caret:>column$}\n\
+                        {space:4}= {msg}\n\n",
+                        i = i+1,
+                        line_number = line_number,
+                        line = line,
+                        caret = '^',
+                        column = column_number,
+                        space = "",
+                        msg = msg,
+
+                    ),
                     Typo::Expected(chars) => {
                         if let Some(actual) = substring.chars().next() {
                             write!(
@@ -142,7 +171,7 @@ impl<'i> Report<&'i str> {
                                 caret = '^',
                                 column = column_number,
                                 expected = chars,
-                                space = ""
+                                space = "",
                             )
                         }
                     }
@@ -175,7 +204,7 @@ impl<'i> Report<&'i str> {
                         caret = '^',
                         column = column_number,
                         nom_err_desc = e.description().to_ascii_lowercase(),
-                        space = ""
+                        space = "",
                     ),
                 }
             }

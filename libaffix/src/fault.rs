@@ -23,11 +23,11 @@ pub struct ParseErr {
     description: String,
 }
 
-impl<'i> From<nom::Err<(&'i str, nom::error::ErrorKind)>> for ParseErr {
-    fn from(nom_err: nom::Err<(&'i str, nom::error::ErrorKind)>) -> Self {
+impl<'i> From<String> for ParseErr {
+    fn from(description: String) -> Self {
         ParseErr {
             // TODO: actually use info in `nom_err`
-            description: format!("Parse Error: {}", nom_err),
+            description,
         }
     }
 }

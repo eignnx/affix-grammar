@@ -10,7 +10,7 @@ use nom::{
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::char,
     combinator::{all_consuming, cut, map, opt, recognize},
-    error::{context, ParseError},
+    error::context,
     multi::{many0, many1, separated_nonempty_list},
     sequence::{delimited, preceded, tuple},
     IResult,
@@ -21,42 +21,11 @@ use syntax::{
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
 
-/// Use this to define a parser. Syntax is:
-/// ```
-/// #[macro_rules_attribute(nom_parser!)]
-/// pub fn my_parser(i: &str) -> i32 {
-///     // body goes here...
-///     Ok(("", 123))
-/// }
-/// ```
-///
-/// # Benefits
-/// Defining a macro this way gives you a generic error type (anything that
-/// implements `nom::error::ParseError<&str>`).
-macro_rules! nom_parser {
-    (
-        $(#[$meta:meta])*
-        $visibility:vis fn $name:ident<$input_lifetime:lifetime>(
-            $input:ident : $Input:ty
-        ) -> $Out:ty
-            $body:block
-    ) => {
-        $(#[$meta])*
-        $visibility fn $name<$input_lifetime, E>(
-            $input: $Input
-        ) -> nom::IResult<$Input, $Out, E>
-        where
-            E: nom::error::ParseError<$Input>
-        {
-            $body
-        }
-    };
-}
+type Res<'input, Output> = IResult<&'input str, Output, typo::Report<&'input str>>;
 
 /// Requires one or more non-uppercase alphanumeric characters or the
 /// underscore. Examples: `foo`, `blue42`, `bar_baz_qux`, `1st`, `_`
-#[macro_rules_attribute(nom_parser!)]
-fn lower_ident<'i>(i: &'i str) -> IStr {
+fn lower_ident(i: &str) -> Res<IStr> {
     let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '_';
     let (i, name) = context("lowercase identifier", take_while1(valid_char))(i)?;
     Ok((i, IStr::new(name)))
@@ -64,8 +33,7 @@ fn lower_ident<'i>(i: &'i str) -> IStr {
 
 /// Requires exactly one uppercase character, then zero or more alphabetic
 /// characters. Examples: `Person`, `Q`, `AbstractSingletonBean`
-#[macro_rules_attribute(nom_parser!)]
-fn upper_ident<'i>(i: &'i str) -> IStr {
+fn upper_ident(i: &str) -> Res<IStr> {
     let (i, name) = context(
         "uppercase identifier",
         recognize(preceded(
@@ -76,8 +44,7 @@ fn upper_ident<'i>(i: &'i str) -> IStr {
     Ok((i, IStr::new(name)))
 }
 
-#[macro_rules_attribute(nom_parser!)]
-fn quoted<'i>(i: &'i str) -> IStr {
+fn quoted(i: &str) -> Res<IStr> {
     let (i, content) = delimited(char('"'), is_not("\""), char('"'))(i)?;
     Ok((i, IStr::new(content)))
 }
@@ -91,8 +58,7 @@ fn quoted<'i>(i: &'i str) -> IStr {
 /// ```ignore
 /// identifier ( sentential_form_1 | sentential_form_2 | ... )
 /// ```
-#[macro_rules_attribute(nom_parser!)]
-fn data_variant_decl<'i>(i: &'i str) -> (DataVariant, Vec<SententialForm>) {
+fn data_variant_decl(i: &str) -> Res<(DataVariant, Vec<SententialForm>)> {
     tuple((
         map(space::allowed::after(lower_ident), DataVariant),
         map(
@@ -110,8 +76,7 @@ fn data_variant_decl<'i>(i: &'i str) -> (DataVariant, Vec<SententialForm>) {
 /// ```ignore
 /// data Foo = variant_1 | variant_2 | variant_n
 /// ```
-#[macro_rules_attribute(nom_parser!)]
-fn data_decl<'i>(i: &'i str) -> DataDecl {
+fn data_decl(i: &str) -> Res<DataDecl> {
     let (i, (name, variants)) = preceded(
         space::required::after(tag("data")),
         context(
@@ -137,12 +102,11 @@ fn data_decl<'i>(i: &'i str) -> DataDecl {
 #[test]
 fn parse_data_decl() {
     use internship::IStr;
-    use nom::error::VerboseError;
     use std::collections::HashMap;
     use std::iter::FromIterator;
 
     let src = "data Number = singular | plural";
-    let (rest, parsed) = data_decl::<VerboseError<&str>>(src).expect("successful parse");
+    let (rest, parsed) = data_decl(src).expect("successful parse");
     assert_eq!(rest, "");
     let decl = DataDecl {
         name: DataName(IStr::new("Number")),
@@ -156,8 +120,7 @@ fn parse_data_decl() {
 
 /// Arguments passed to a rule ref (call) like: `start.G1.N2` or
 /// `story.short.to_the_point`.
-#[macro_rules_attribute(nom_parser!)]
-fn argument<'i>(i: &'i str) -> Argument {
+fn argument(i: &str) -> Res<Argument> {
     alt((
         map(upper_ident, |ident| Argument::Variable(DataVariable(ident))),
         map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
@@ -166,8 +129,7 @@ fn argument<'i>(i: &'i str) -> Argument {
 
 /// Parsed a reference to a rule like: `start.G1.present_tense` or `story`.
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
-#[macro_rules_attribute(nom_parser!)]
-fn rule_ref<'i>(i: &'i str) -> RuleRef {
+fn rule_ref(i: &str) -> Res<RuleRef> {
     let (i, name) = lower_ident(i)?;
     let (i, vars) = many0(preceded(char('.'), argument))(i)?;
     let reference = RuleRef {
@@ -183,8 +145,7 @@ fn rule_ref<'i>(i: &'i str) -> RuleRef {
 /// each individual item that could appear in a sentential form **must** have
 /// be able to be smashed up against any other (without whitespace) and be
 /// parseable.
-#[macro_rules_attribute(nom_parser!)]
-fn sentential_form<'i>(i: &'i str) -> SententialForm {
+fn sentential_form(i: &str) -> Res<SententialForm> {
     let (i, vec) = context(
         "sentential form",
         separated_nonempty_list(
@@ -209,8 +170,7 @@ fn sentential_form<'i>(i: &'i str) -> SententialForm {
 /// Parses the (type) signature a rule like: `start.Gender.Number` or `story`.
 /// Appears at the start of a rule definition.
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
-#[macro_rules_attribute(nom_parser!)]
-fn rule_sig<'i>(i: &'i str) -> RuleSig {
+fn rule_sig(i: &str) -> Res<RuleSig> {
     let (i, (name, vars)) = context(
         "rule signature",
         tuple((
@@ -229,8 +189,7 @@ fn rule_sig<'i>(i: &'i str) -> RuleSig {
 
 /// Any case-analysis pattern that can appear at the front of a case branch.
 /// Parses `ident` or `*`.
-#[macro_rules_attribute(nom_parser!)]
-fn pattern<'i>(i: &'i str) -> Pattern {
+fn pattern(i: &str) -> Res<Pattern> {
     context(
         "pattern",
         alt((
@@ -245,8 +204,7 @@ fn pattern<'i>(i: &'i str) -> Pattern {
 /// .ident_1.*.ident_2.*.*.ident_n
 /// ```
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
-#[macro_rules_attribute(nom_parser!)]
-fn guard<'i>(i: &'i str) -> Guard {
+fn guard(i: &str) -> Res<Guard> {
     let (i, requirements) = many1(preceded(char('.'), pattern))(i)?;
     let guard = Guard {
         requirements: requirements.into(),
@@ -258,8 +216,7 @@ fn guard<'i>(i: &'i str) -> Guard {
 /// ```ignore
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-#[macro_rules_attribute(nom_parser!)]
-fn sentential_form_alternatives<'i>(i: &'i str) -> Vec<SententialForm> {
+fn sentential_form_alternatives(i: &str) -> Res<Vec<SententialForm>> {
     separated_nonempty_list(space::allowed::around(char('|')), sentential_form)(i)
 }
 
@@ -269,12 +226,7 @@ fn sentential_form_alternatives<'i>(i: &'i str) -> Vec<SententialForm> {
 /// ```ignore
 /// sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn guarded_sentential_form_alternatives<'i, E>(
-    guard: Guard,
-) -> impl Fn(&'i str) -> IResult<&'i str, Case, E>
-where
-    E: ParseError<&'i str>,
-{
+fn guarded_sentential_form_alternatives<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Case> {
     move |i: &'i str| {
         map(sentential_form_alternatives, |alternatives| Case {
             guard: guard.clone(),
@@ -287,10 +239,7 @@ where
 /// ```ignore
 /// .foo.bar.*.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
 /// ```
-fn arrow_guard_rule_case<'i, E>(curr_guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Case, E>
-where
-    E: ParseError<&'i str>,
-{
+fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Case> {
     move |i: &'i str| {
         let (i, _) = space::allowed::after(tag("->"))(i)?;
         context(
@@ -304,12 +253,7 @@ where
 /// ```ignore
 /// .foo.bar.baz { rule_case_1 rule_case_2 rule_case_n }
 /// ```
-fn nested_guard_rule_case<'i, E>(
-    curr_guard: Guard,
-) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
-where
-    E: ParseError<&'i str>,
-{
+fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
         let (i, cases) = delimited(
             char('{'),
@@ -334,10 +278,7 @@ where
 /// ```ignore
 /// .foo.bar.*.baz { rule_case_1 rule_case_2 rule_case_n }
 /// ```
-fn guarded_rule_case<'i, E>(curr_guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
-where
-    E: ParseError<&'i str>,
-{
+fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
         let mut curr_guard = curr_guard.clone();
         let (i, more_guard) = space::allowed::after(guard)(i)?;
@@ -355,10 +296,7 @@ where
 /// - or a guarded rule case like:
 ///     - `.foo.bar -> some_sentential_form`, or
 ///     - `.foo { nested_rule_cases }`
-fn top_level_rule_cases<'i, E>(guard: Guard) -> impl Fn(&'i str) -> IResult<&'i str, Vec<Case>, E>
-where
-    E: ParseError<&'i str>,
-{
+fn top_level_rule_cases<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
         let (i, cases) = alt((
@@ -382,8 +320,7 @@ where
 /// ```ignore
 /// rule foo.Bar.Baz = <rule body here>
 /// ```
-#[macro_rules_attribute(nom_parser!)]
-fn rule_decl<'i>(i: &'i str) -> RuleDecl {
+fn rule_decl(i: &str) -> Res<RuleDecl> {
     let (i, (signature, cases)) = preceded(
         space::required::after(tag("rule")),
         context(
@@ -401,6 +338,27 @@ fn rule_decl<'i>(i: &'i str) -> RuleDecl {
     Ok((i, decl))
 }
 
+/// If the given subparser parses successfully, this parser will raise a
+/// `nom::Err::Failure`. The `err_constructor` argument is a `Fn` that must
+/// produce a `typo::Typo` given a `Parsed` value from `parser`.
+fn failure_case<'i, Free, Parsed, P, F>(
+    parser: P,
+    err_constructor: F,
+) -> impl Fn(&'i str) -> Res<'i, Free>
+where
+    P: Fn(&'i str) -> Res<'i, Parsed>,
+    F: Fn(Parsed) -> typo::Typo,
+{
+    use nom::Err::{Error, Failure, Incomplete};
+    use typo::Report;
+    move |i: &'i str| match parser(i) {
+        Ok((_, x)) => Err(Failure(Report::from((i, err_constructor(x))))),
+        Err(Failure(e)) => Err(Failure(e)),
+        Err(Error(e)) => Err(Error(e)),
+        Err(Incomplete(need)) => Err(Incomplete(need)),
+    }
+}
+
 /// The top-level parsing function of this module. Attempts to parse a
 /// [`Grammar`] from an input `&str`. Note: you'll need to provide an error type
 /// via the turbo-fish operator in order to constrain the generic error type
@@ -412,12 +370,22 @@ fn rule_decl<'i>(i: &'i str) -> RuleDecl {
 /// let res = parse::<VerboseError<&str>>("data Foo = bar | baz");
 /// assert!(res.is_ok());
 /// ```
-#[macro_rules_attribute(nom_parser!)]
-pub fn parse<'i>(i: &'i str) -> Grammar {
+pub fn parse(i: &str) -> Res<Grammar> {
     enum Decl {
         Data(DataDecl),
         Rule(RuleDecl),
     }
+
+    let malformed_keyword = failure_case(recognize(rule_sig), |txt| {
+        typo::Typo::Custom(format!(
+            "I expected either the 'data' or 'rule' keyword here, but I got '{}'.",
+            txt,
+        ))
+    });
+
+    let misplaced_data_decl = failure_case(recognize(upper_ident), |_| {
+        typo::Typo::Custom(format!("Is this the beginning of a data declaration? If so, it needs to begin with the 'data' keyword."))
+    });
 
     let (i, decls) = context(
         "full grammar",
@@ -426,6 +394,8 @@ pub fn parse<'i>(i: &'i str) -> Grammar {
             space::allowed::after(alt((
                 map(data_decl, Decl::Data),
                 map(rule_decl, Decl::Rule),
+                malformed_keyword,
+                misplaced_data_decl,
             ))),
         )))),
     )(i)?;
@@ -464,7 +434,7 @@ rule want.Number.Person =
     }
     --comment at veeerry end"#;
 
-    let (remainder, actual) = match parse::<typo::Report<&str>>(src) {
+    let (remainder, actual) = match parse(src) {
         Ok(pair) => pair,
         Err(nom::Err::Failure(e)) | Err(nom::Err::Error(e)) => {
             panic!("Parse Failure:\n{}", e.report(src));

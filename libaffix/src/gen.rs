@@ -303,7 +303,11 @@ impl Generator {
 pub fn parse_grammar<'buf>(src: &'buf str) -> fault::Result<Grammar> {
     let grammar = crate::parser::parse(src)
         .map(|(_rest, grammar)| grammar)
-        .map_err(Into::into)
-        .map_err(Fault::BadParse)?;
+        .map_err(|e| match e {
+            nom::Err::Failure(report) | nom::Err::Error(report) => {
+                Fault::BadParse(fault::ParseErr::from(report.report(src)))
+            }
+            _ => unimplemented!(),
+        })?;
     Ok(grammar)
 }
