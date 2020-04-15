@@ -3,6 +3,7 @@ pub mod syntax;
 pub mod typo;
 
 use im::Vector;
+use std::convert::TryFrom;
 // use macro_rules_attribute::macro_rules_attribute;
 use internship::IStr;
 use nom::{
@@ -16,11 +17,12 @@ use nom::{
     IResult,
 };
 
+use crate::fault::StaticErr;
 use syntax::{
     Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
-use typo::{Report, Typo};
+use typo::{Report, SourcedTypo, Typo};
 
 type Res<'input, Output> = IResult<&'input str, Output, Report<&'input str>>;
 
@@ -412,7 +414,13 @@ where
 {
     use nom::Err::{Error, Failure, Incomplete};
     move |i: &'i str| match parser(i) {
-        Ok((_, x)) => Err(Failure(Report::from((i, err_constructor(x))))),
+        Ok((_i_after_parse, parsed)) => {
+            let report = Report::from(SourcedTypo {
+                fragment: i,
+                typo: err_constructor(parsed),
+            });
+            Err(Failure(report))
+        }
         Err(Failure(e)) => Err(Failure(e)),
         Err(Error(e)) => Err(Error(e)),
         Err(Incomplete(need)) => Err(Incomplete(need)),
@@ -502,10 +510,27 @@ pub fn parse(i: &str) -> Res<Grammar> {
     Ok((i, grammar))
 }
 
+/// You must keep the src string alive until after the function terminates so
+/// that errors that reference either of them can be propagated up.
+impl<'src> TryFrom<&'src str> for Grammar {
+    type Error = StaticErr<'src>;
+    fn try_from(src: &'src str) -> Result<Self, Self::Error> {
+        use nom::Err::{Error, Failure, Incomplete};
+
+        let (_unparsed_src, grammar) = parse(src).map_err(|e| match e {
+            Failure(report) | Error(report) => StaticErr::from(report.summarize(src)),
+            Incomplete(_) => unimplemented!(),
+        })?;
+
+        Ok(grammar)
+    }
+}
+
 #[test]
 fn parse_full_grammar() {
     use im::vector;
     use internship::IStr;
+    use std::convert::TryInto;
 
     let src = r#"
 data Number = singular | plural
@@ -526,14 +551,7 @@ rule want.Number.Person =
     }
     --comment at veeerry end"#;
 
-    let (remainder, actual) = match parse(src) {
-        Ok(pair) => pair,
-        Err(nom::Err::Failure(e)) | Err(nom::Err::Error(e)) => {
-            panic!("Parse Failure:\n{}", e.report(src));
-        }
-        _ => unimplemented!(),
-    };
-    assert!(remainder.is_empty());
+    let actual: Grammar = src.try_into().unwrap();
 
     let make_guard = |v: &[&str]| Guard {
         requirements: v

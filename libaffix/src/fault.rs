@@ -1,39 +1,33 @@
-use crate::parser::syntax::{DataVariant, RuleDecl, RuleName};
+use crate::parser::{
+    syntax::{DataVariant, RuleDecl, RuleName},
+    typo,
+};
 use thiserror::Error;
-use wasm_bindgen::JsValue;
 
-pub type Result<T = ()> = std::result::Result<T, Fault>;
+pub type StaticRes<'src, T = ()> = std::result::Result<T, StaticErr<'src>>;
+pub type DynamicRes<T = ()> = std::result::Result<T, DynamicErr>;
 
-#[derive(Debug, Serialize)]
-pub struct TokenizationErr {
-    description: String,
+#[derive(Error, Debug, Serialize)]
+pub enum StaticErr<'src> {
+    #[error("Syntax Error:\n{0:?}")]
+    SyntaxErr(typo::ErrorSummary<'src>),
 }
 
-impl<'buf> From<nom::Err<(&'buf str, nom::error::ErrorKind)>> for TokenizationErr {
-    fn from(nom_err: nom::Err<(&'buf str, nom::error::ErrorKind)>) -> Self {
-        TokenizationErr {
-            // TODO: actually use info in `nom_err`
-            description: format!("Tokenization Error: {}", nom_err),
-        }
+impl<'src> From<typo::ErrorSummary<'src>> for StaticErr<'src> {
+    fn from(summary: typo::ErrorSummary<'src>) -> Self {
+        Self::SyntaxErr(summary)
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ParseErr {
-    description: String,
-}
-
-impl<'i> From<String> for ParseErr {
-    fn from(description: String) -> Self {
-        ParseErr {
-            // TODO: actually use info in `nom_err`
-            description,
-        }
+impl<'src> From<StaticErr<'src>> for wasm_bindgen::JsValue {
+    fn from(err: StaticErr<'src>) -> wasm_bindgen::JsValue {
+        let msg = "Failure to translate StaticErr into JsValue!";
+        serde_wasm_bindgen::to_value(&err).expect(msg)
     }
 }
 
 #[derive(Error, Debug, Serialize)]
-pub enum Fault {
+pub enum DynamicErr {
     #[allow(dead_code)]
     #[error("No case of rule `{rule_name}` matches the current arguments: {arguments}")]
     InexhaustiveCaseAnalysis {
@@ -47,12 +41,6 @@ pub enum Fault {
         rule_name: String, // TODO: tell user where in src error occurred
                            // TODO: move this into semantic analysis phase, not runtime
     },
-
-    #[error("Tokenization failed at {0:?}")]
-    BadTokenization(TokenizationErr),
-
-    #[error("Parsing failed at {0:?}")]
-    BadParse(ParseErr),
 }
 
 #[derive(Debug, Serialize)]
@@ -76,7 +64,7 @@ impl std::fmt::Display for ArgMap {
     }
 }
 
-impl<'buf> Fault {
+impl DynamicErr {
     pub fn inexhaustive_case_analysis(
         rules: &[RuleDecl],
         rule_name: &RuleName,
@@ -112,11 +100,9 @@ impl<'buf> Fault {
     }
 }
 
-impl<'src> From<Fault> for JsValue {
-    fn from(fault: Fault) -> JsValue {
-        match fault {
-            // TODO: convert to serde-serialized Js objects instead of strings.
-            fault => format!("FAULT: {}", fault).into(),
-        }
+impl<'src> From<DynamicErr> for wasm_bindgen::JsValue {
+    fn from(err: DynamicErr) -> wasm_bindgen::JsValue {
+        let msg = "Failure to translate DynamicErr into JsValue!";
+        serde_wasm_bindgen::to_value(&err).expect(msg)
     }
 }

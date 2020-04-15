@@ -1,4 +1,4 @@
-use crate::fault::{self, Fault};
+use crate::fault::{DynamicErr, DynamicRes};
 use crate::parser::syntax::{
     Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleName,
     RuleRef, Token,
@@ -70,7 +70,7 @@ impl Generator {
         &'gen self,
         rule_name: &RuleName,
         arguments: &Vec<DataVariant>,
-    ) -> fault::Result<Case>
+    ) -> DynamicRes<Case>
     where
         'buf: 'gen,
     {
@@ -81,7 +81,7 @@ impl Generator {
             .iter()
             .filter(|rule_decl| &rule_decl.signature.name == rule_name)
             .next() // TODO: Should this *only* return the first-found rule decl?
-            .ok_or(Fault::unbound_rule_name(rule_name.0.as_str()))?;
+            .ok_or(DynamicErr::unbound_rule_name(rule_name.0.as_str()))?;
 
         // Check each case one after another until an allowable case is found.
         for case in &rule.cases {
@@ -92,7 +92,7 @@ impl Generator {
             }
         }
         // We are out of possibilities. This case must not have been handled in the case analysis.
-        Err(Fault::inexhaustive_case_analysis(
+        Err(DynamicErr::inexhaustive_case_analysis(
             &self.grammar.rule_decls,
             rule_name,
             arguments,
@@ -167,7 +167,7 @@ impl Generator {
     fn stringify_data_variant<'gen, 'buf>(
         &'gen self,
         variant: DataVariant,
-    ) -> fault::Result<Vector<OutToken>>
+    ) -> DynamicRes<Vector<OutToken>>
     where
         'buf: 'gen,
     {
@@ -190,7 +190,7 @@ impl Generator {
     fn generate_non_unique_from_start<'gen, 'buf>(
         &'gen self,
         start: RuleName,
-    ) -> fault::Result<Vector<OutToken>>
+    ) -> DynamicRes<Vector<OutToken>>
     where
         'buf: 'gen,
     {
@@ -205,7 +205,7 @@ impl Generator {
     fn generate_non_unique_from_sentence<'gen, 'buf>(
         &'gen self,
         sentence: Vector<Token>,
-    ) -> fault::Result<Vector<OutToken>> {
+    ) -> DynamicRes<Vector<OutToken>> {
         let mut state = HashMap::new();
         let mut new_sentence: Vector<OutToken> = Default::default();
 
@@ -277,7 +277,7 @@ impl Generator {
         text
     }
 
-    pub fn generate<'gen, 'buf>(&'gen mut self) -> fault::Result<Option<String>>
+    pub fn generate<'gen, 'buf>(&'gen mut self) -> DynamicRes<Option<String>>
     where
         'buf: 'gen,
     {
@@ -296,18 +296,4 @@ impl Generator {
             }
         }
     }
-}
-
-/// You must keep the src string alive until after the function terminates so
-/// that errors that reference either of them can be propagated up.
-pub fn parse_grammar<'buf>(src: &'buf str) -> fault::Result<Grammar> {
-    let grammar = crate::parser::parse(src)
-        .map(|(_rest, grammar)| grammar)
-        .map_err(|e| match e {
-            nom::Err::Failure(report) | nom::Err::Error(report) => {
-                Fault::BadParse(fault::ParseErr::from(report.report(src)))
-            }
-            _ => unimplemented!(),
-        })?;
-    Ok(grammar)
 }

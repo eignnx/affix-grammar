@@ -1,0 +1,12 @@
+// const CARET: char = '↑';
+const CARET: char = '⯅';
+// const CARET: char = '⏶';
+// const CARET: char = '﹋';
+// const BAR: char = '⦙';
+const BAR: char = '｜';
+// const BAR: char = '┃';
+// const BAR: char = '⟧';
+// const BAR: char = '┇';
+// const BAR: char = '╏';
+// const THERFORE: char = '∴';
+const THERFORE: char = '┖';
