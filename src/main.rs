@@ -1,5 +1,6 @@
 mod cli;
-use libaffix::gen::{parse_grammar, Generator};
+use libaffix::{gen::Generator, parser::syntax::Grammar};
+use std::convert::TryFrom;
 use std::fs;
 use std::io::{self, Write};
 use structopt::StructOpt;
@@ -15,8 +16,7 @@ fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&
 fn main() -> io::Result<()> {
     let cli_options = cli::Options::from_args();
     let src = fs::read_to_string(&cli_options.grammar_file)?;
-    let mut lexeme_buf = Vec::new();
-    let grammar = parse_grammar(&src, &mut lexeme_buf).unwrap_or_else(|err| panic!("{}", err));
+    let grammar = Grammar::try_from(&src[..]).unwrap_or_else(|err| panic!("{}", err));
 
     let mut generator = Generator::new(grammar);
 

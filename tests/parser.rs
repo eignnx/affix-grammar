@@ -1,8 +1,8 @@
-use libaffix::{gen::parse_grammar, parser::syntax::Grammar};
+use libaffix::parser::syntax::Grammar;
+use std::convert::TryFrom;
 
 fn parse_src(src: &str) -> Grammar {
-    let mut lexeme_buf = Vec::new();
-    parse_grammar(src, &mut lexeme_buf).unwrap_or_else(|err| panic!("{}", err))
+    Grammar::try_from(src).unwrap_or_else(|err| panic!("{}", err))
 }
 
 #[test]

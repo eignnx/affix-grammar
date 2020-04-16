@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Clone)]
 pub enum Typo {
     Custom(&'static str, String),
@@ -245,5 +247,54 @@ impl<'i> Report<&'i str> {
             .filter_map(|sourced_typo| secondary_summary_error(src, &sourced_typo))
             .collect();
         primary_summary_error(src, primary, trace)
+    }
+}
+
+impl<'src> fmt::Display for ErrorSummary<'src> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (width, _height) = term_size::dimensions().unwrap_or_else(|| (80, 100));
+        match &self.loc {
+            Some(loc) => writeln!(
+                f,
+                "{title:-^width$}\n\
+                \n\
+                {line_no:3}{bar} {line}\n\
+                {blank:5}{arrow:>column_no$}\n\
+                \n\
+                {msg}",
+                title = self.title.unwrap_or_else(|| "SYNTAX ERROR"),
+                width = width,
+                line_no = loc.line_no,
+                blank = "",
+                bar = '｜',
+                line = loc.line,
+                column_no = loc.column_no,
+                arrow = '⯅',
+                msg = self.msg,
+            )?,
+            None => writeln!(
+                f,
+                "{title:-^width$}\n\
+                \n\
+                {msg}",
+                title = self.title.unwrap_or_else(|| "SYNTAX ERROR"),
+                width = width,
+                msg = self.msg,
+            )?,
+        }
+
+        if !self.trace.is_empty() {
+            writeln!(f, "")?;
+            writeln!(f, "PARSE TRACE:")?;
+            writeln!(f, "The problem happened...")?;
+        }
+
+        self.trace
+            .iter()
+            .try_for_each(|msg| writeln!(f, "  {}", msg))?;
+
+        writeln!(f, "{blank:-^width$}", blank = "", width = width)?;
+
+        Ok(())
     }
 }

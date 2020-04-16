@@ -31,7 +31,7 @@ type Res<'input, Output> = IResult<&'input str, Output, Report<&'input str>>;
 fn lower_ident(i: &str) -> Res<IStr> {
     let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '_';
     let (i, name) = context(
-        "lowercase identifier",
+        "a lowercase identifier",
         verify(take_while1(valid_char), |txt: &str| {
             txt != "data" && txt != "rule"
         }),
@@ -43,7 +43,7 @@ fn lower_ident(i: &str) -> Res<IStr> {
 /// characters. Examples: `Person`, `Q`, `AbstractSingletonBean`
 fn upper_ident(i: &str) -> Res<IStr> {
     let (i, name) = context(
-        "uppercase identifier",
+        "an uppercase identifier",
         recognize(preceded(
             take_while_m_n(1, 1, char::is_uppercase),
             take_while(char::is_alphabetic),
@@ -88,7 +88,7 @@ fn data_decl(i: &str) -> Res<DataDecl> {
     let (i, (name, variants)) = preceded(
         space::required::after(tag("data")),
         context(
-            "data variant definition",
+            "a data variant definition",
             cut(tuple((
                 space::allowed::after(upper_ident),
                 preceded(
@@ -134,11 +134,11 @@ fn argument(i: &str) -> Res<Argument> {
         map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
         failure_case(char('*'), |_| {
             Typo::Custom(
-                "use of '*' in argument position",
+                "USE OF '*' IN ARGUMENT POSITION",
                 format!(
                     "I'm not supposed to allow the '*' character here. Please \
-                spell out a unique variable name if you'd like to pass a \
-                random value here."
+                    spell out a unique variable name if you'd like to pass a \
+                    random value here."
                 ),
             )
         }),
@@ -165,7 +165,7 @@ fn rule_ref(i: &str) -> Res<RuleRef> {
 /// parseable.
 fn sentential_form(i: &str) -> Res<SententialForm> {
     let (i, vec) = context(
-        "sentential form",
+        "a sentential form",
         separated_nonempty_list(
             space::allowed::here,
             alt((
@@ -174,13 +174,13 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                 preceded(
                     char('@'),
                     context(
-                        "data interpolation",
+                        "a data interpolation",
                         cut(alt((
                             map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
                             map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
                             failure_case(alt((tag("rule"), tag("data"))), |kw| {
                                 Typo::Custom(
-                                    "unexpected keyword",
+                                    "UNEXPECTED KEYWORD",
                                     format!(
                                         "I can't let you use the '{}' keyword here. \
                                         It's a reserved word.",
@@ -190,7 +190,7 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                             }),
                             failure_case(anychar, |ch| {
                                 Typo::Custom(
-                                    "bad value for data interpolation",
+                                    "BAD VALUE FOR DATA INTERPOLATION",
                                     format!(
                                         "I was expecting either the lowercase \
                                         name of a data variant value, or the \
@@ -203,7 +203,7 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                         ))),
                     ),
                 ),
-                context("rule reference", map(rule_ref, Token::RuleRef)),
+                context("a rule reference", map(rule_ref, Token::RuleRef)),
             )),
         ),
     )(i)?;
@@ -215,7 +215,7 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn rule_sig(i: &str) -> Res<RuleSig> {
     let (i, (name, vars)) = context(
-        "rule signature",
+        "a rule signature",
         tuple((
             lower_ident,
             many0(preceded(char('.'), map(upper_ident, DataName))),
@@ -234,13 +234,13 @@ fn rule_sig(i: &str) -> Res<RuleSig> {
 /// Parses `ident` or `*`.
 fn pattern(i: &str) -> Res<Pattern> {
     context(
-        "pattern",
+        "a pattern",
         alt((
             map(char('*'), |_| Pattern::Star),
             map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
             failure_case(upper_ident, |_| {
                 Typo::Custom(
-                    "unsupported use of variable in pattern",
+                    "UNSUPPORTED USE OF VARIABLE IN PATTERN",
                     format!(
                         "I see you're trying to use a variable in a guard pattern! \
                     Cool! Unfortunately I don't know how to handle that \
@@ -297,7 +297,7 @@ fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, C
     move |i: &'i str| {
         let (i, _) = space::allowed::after(tag("->"))(i)?;
         context(
-            "arrow guard rule case",
+            "an arrow guard rule case",
             cut(guarded_sentential_form_alternatives(curr_guard.clone())),
         )(i)
     }
@@ -312,12 +312,12 @@ fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, 
         let (i, cases) = delimited(
             char('{'),
             context(
-                "nested rule case",
+                "a nested rule case",
                 cut(space::allowed::before(many0(space::allowed::after(
                     guarded_rule_case(curr_guard.clone()),
                 )))),
             ),
-            context("closing brace", cut(char('}'))),
+            context("a closing brace", cut(char('}'))),
         )(i)?;
         let cases = cases.into_iter().flatten().collect();
         Ok((i, cases))
@@ -342,10 +342,10 @@ fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<C
             nested_guard_rule_case(curr_guard.clone()),
             failure_case(anychar, |_| {
                 Typo::Custom(
-                    "malformed rule case body",
+                    "MALFORMED RULE CASE BODY",
                     format!(
                         "I was expecting either '->' or '{{' here because I just \
-                    saw a pattern guard."
+                        saw a pattern guard."
                     ),
                 )
             }),
@@ -369,7 +369,7 @@ fn top_level_rule_cases<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Cas
             ),
             map(
                 context(
-                    "sentential form rule body",
+                    "a sentential form rule body",
                     guarded_sentential_form_alternatives(guard.clone()),
                 ),
                 |case| vec![case],
@@ -387,7 +387,7 @@ fn rule_decl(i: &str) -> Res<RuleDecl> {
     let (i, (signature, cases)) = preceded(
         space::required::after(tag("rule")),
         context(
-            "rule definition",
+            "a rule definition",
             cut(tuple((
                 rule_sig,
                 preceded(
@@ -443,7 +443,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
 
     let malformed_keyword = failure_case(recognize(rule_sig), |txt| {
         Typo::Custom(
-            "malformed keyword",
+            "MALFORMED KEYWORD",
             format!(
                 "I expected either the 'data' or 'rule' keyword here, but I \
                 got '{}'.",
@@ -454,7 +454,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
 
     let misplaced_data_decl = failure_case(recognize(upper_ident), |_| {
         Typo::Custom(
-            "misplaced data definition",
+            "MISPLACED DATA DEFINITION",
             format!(
                 "Is this the beginning of a data declaration? If so, it needs \
                 to begin with the 'data' keyword."
@@ -464,7 +464,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
 
     let extra_closing_brace = failure_case(char('}'), |_| {
         Typo::Custom(
-            "extra closing brace",
+            "EXTRA CLOSING BRACE",
             format!(
                 "I think you have an extra closing brace ('}}') here. No big \
                 deal, it happens!"
@@ -474,7 +474,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
 
     let extraneous_char = failure_case(one_of("!@#$%^&*()[]{|<>?/~`\"\\:;="), |ch| {
         Typo::Custom(
-            "extraneous character after top-level definition",
+            "EXTRANEOUS CHARACTER AFTER TOP-LEVEL DEFINITION",
             format!(
                 "I got some weird character {:?} here. I'm not sure what's \
                 going on. Do you?",
@@ -484,9 +484,9 @@ pub fn parse(i: &str) -> Res<Grammar> {
     });
 
     let (i, decls) = all_consuming(space::allowed::before(context(
-        "full grammar",
+        "the full grammar",
         many0(context(
-            "top-level definition",
+            "a top-level definition",
             space::allowed::after(alt((
                 map(data_decl, Decl::Data),
                 map(rule_decl, Decl::Rule),

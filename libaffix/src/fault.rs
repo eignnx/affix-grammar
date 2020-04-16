@@ -9,7 +9,7 @@ pub type DynamicRes<T = ()> = std::result::Result<T, DynamicErr>;
 
 #[derive(Error, Debug, Serialize)]
 pub enum StaticErr<'src> {
-    #[error("Syntax Error:\n{0:?}")]
+    #[error("Syntax Error:\n{0}")]
     SyntaxErr(typo::ErrorSummary<'src>),
 }
 
