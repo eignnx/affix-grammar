@@ -5,6 +5,11 @@ use std::fs;
 use std::io::{self, Write};
 use structopt::StructOpt;
 
+fn exit_with_error<E: std::fmt::Display>(e: E) -> ! {
+    eprintln!("{}", e);
+    std::process::exit(-1);
+}
+
 fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&'buf str> {
     io::stdout().write_all(question.as_ref())?;
     io::stdout().flush()?;
@@ -16,7 +21,7 @@ fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&
 fn main() -> io::Result<()> {
     let cli_options = cli::Options::from_args();
     let src = fs::read_to_string(&cli_options.grammar_file)?;
-    let grammar = Grammar::try_from(&src[..]).unwrap_or_else(|err| panic!("{}", err));
+    let grammar = Grammar::try_from(&src[..]).unwrap_or_else(|err| exit_with_error(err));
 
     let mut generator = Generator::new(grammar);
 
@@ -33,7 +38,7 @@ fn main() -> io::Result<()> {
                 );
                 break;
             }
-            Err(err) => panic!("{}", err),
+            Err(err) => exit_with_error(err),
         };
         println!("\t\"{}\"", sentence);
     }
@@ -76,7 +81,7 @@ fn main() -> io::Result<()> {
                         break 'outer;
                     }
                 }
-                Err(err) => panic!("{}", err),
+                Err(err) => exit_with_error(err),
             };
         }
 
