@@ -11,7 +11,6 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-// type State = Env<IStr, Vector<OutToken>>;
 type State = HashMap<DataVariable, DataVariant>;
 
 pub struct Generator {
