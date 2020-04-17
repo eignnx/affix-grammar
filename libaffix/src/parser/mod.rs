@@ -69,28 +69,12 @@ fn quoted(i: &str) -> Res<IStr> {
 fn data_variant_decl(i: &str) -> Res<(DataVariant, Vec<SententialForm>)> {
     context(
         "a single data variant",
-        // alt((
-        //     tuple((
-        //         map(lower_ident, DataVariant),
-        //         space::required::before(delimited(
-        //             char('('),
-        //             sentential_form_alternatives,
-        //             // separated_nonempty_list(space::allowed::around(char('|')), sentential_form),
-        //             cut(char(')')),
-        //         ))
-        //     )),
-        //     map(lower_ident, |name| (DataVariant(name), vec![])),
-        // ))
         tuple((
             space::required::after(map(lower_ident, DataVariant)),
             map(
                 opt(delimited(
                     char('('),
-                    sentential_form_alternatives,
-                    // separated_nonempty_list(
-                    //     space::allowed::before(char('|')),
-                    //     space::allowed::before(sentential_form),
-                    // ),
+                    space::allowed::around(sentential_form_alternatives),
                     char(')'),
                 )),
                 |opt_alternatives| opt_alternatives.unwrap_or_else(Vec::new),

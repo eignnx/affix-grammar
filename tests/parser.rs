@@ -20,7 +20,7 @@ fn data_variable_and_variant_in_sentential_form() {
     parse_src(
         r#"
         data Data = one | two | three
-        rule start = .Data .one .two .three
+        rule start = @Data @one @two @three
         "#,
     );
 }

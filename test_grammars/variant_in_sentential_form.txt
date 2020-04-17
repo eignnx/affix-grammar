@@ -1,5 +1,5 @@
 data Character
-  = paul ("Paul Simon" | "Pauli-Plauli-Paul")
-  | art ("Art Garfunkel" | "musician named" @art)
+  = paul ( "Paul Simon" | "Pauli-Plauli-Paul" )
+  | art ("Art Garfunkel" | "the musician known only as '" + @art + "'")
 
 rule start = "Hello" @Character + ". Are you" @paul + "?"

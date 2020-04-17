@@ -259,7 +259,7 @@ impl<'src> fmt::Display for ErrorSummary<'src> {
                 "{title:-^width$}\n\
                 \n\
                 {line_no:3}{bar} {line}\n\
-                {blank:5}{arrow:>column_no$}\n\
+                {blank:6}{arrow:>column_no$}\n\
                 \n\
                 {msg}",
                 title = self.title.unwrap_or_else(|| "SYNTAX ERROR"),
@@ -269,7 +269,7 @@ impl<'src> fmt::Display for ErrorSummary<'src> {
                 bar = '｜',
                 line = loc.line,
                 column_no = loc.column_no,
-                arrow = '⯅',
+                arrow = '↑',
                 msg = self.msg,
             )?,
             None => writeln!(

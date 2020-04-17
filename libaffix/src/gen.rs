@@ -181,9 +181,8 @@ impl Generator {
         let backup = alternatives
             .iter()
             .choose(&mut *self.rng.borrow_mut())
-            .expect("data-variant printable alternatives cannot be empty")
-            .clone();
-        self.generate_non_unique_from_sentence(backup)
+            .ok_or(DynamicErr::NoDataVariantStringification(variant.0.clone()))?;
+        self.generate_non_unique_from_sentence(backup.clone())
     }
 
     fn generate_non_unique_from_start<'gen, 'buf>(

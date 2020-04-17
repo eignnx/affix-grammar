@@ -7,6 +7,7 @@ use thiserror::Error;
 pub type StaticRes<'src, T = ()> = std::result::Result<T, StaticErr<'src>>;
 pub type DynamicRes<T = ()> = std::result::Result<T, DynamicErr>;
 
+#[non_exhaustive]
 #[derive(Error, Debug, Serialize)]
 pub enum StaticErr<'src> {
     #[error("Syntax Error:\n{0}")]
@@ -26,10 +27,14 @@ impl<'src> From<StaticErr<'src>> for wasm_bindgen::JsValue {
     }
 }
 
+#[non_exhaustive]
 #[derive(Error, Debug, Serialize)]
 pub enum DynamicErr {
     #[allow(dead_code)]
-    #[error("No case of rule `{rule_name}` matches the current arguments: {arguments}")]
+    #[error(
+        "No case of rule `{rule_name}` matches the current arguments: \
+        {arguments}"
+    )]
     InexhaustiveCaseAnalysis {
         rule_name: String,
         arguments: ArgMap,
@@ -41,6 +46,12 @@ pub enum DynamicErr {
         rule_name: String, // TODO: tell user where in src error occurred
                            // TODO: move this into semantic analysis phase, not runtime
     },
+
+    #[error(
+        "I don't know how to print the datavariant '@{0}' in a \
+        user-friendly way!"
+    )]
+    NoDataVariantStringification(internship::IStr),
 }
 
 #[derive(Debug, Serialize)]
