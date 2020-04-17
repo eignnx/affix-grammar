@@ -67,17 +67,36 @@ fn quoted(i: &str) -> Res<IStr> {
 /// identifier ( sentential_form_1 | sentential_form_2 | ... )
 /// ```
 fn data_variant_decl(i: &str) -> Res<(DataVariant, Vec<SententialForm>)> {
-    tuple((
-        map(space::allowed::after(lower_ident), DataVariant),
-        map(
-            opt(delimited(
-                space::allowed::after(char('(')),
-                space::allowed::after(sentential_form_alternatives),
-                char(')'),
-            )),
-            |opt_alternatives| opt_alternatives.unwrap_or_else(Vec::new),
-        ),
-    ))(i)
+    context(
+        "a single data variant",
+        // alt((
+        //     tuple((
+        //         map(lower_ident, DataVariant),
+        //         space::required::before(delimited(
+        //             char('('),
+        //             sentential_form_alternatives,
+        //             // separated_nonempty_list(space::allowed::around(char('|')), sentential_form),
+        //             cut(char(')')),
+        //         ))
+        //     )),
+        //     map(lower_ident, |name| (DataVariant(name), vec![])),
+        // ))
+        tuple((
+            space::required::after(map(lower_ident, DataVariant)),
+            map(
+                opt(delimited(
+                    char('('),
+                    sentential_form_alternatives,
+                    // separated_nonempty_list(
+                    //     space::allowed::before(char('|')),
+                    //     space::allowed::before(sentential_form),
+                    // ),
+                    char(')'),
+                )),
+                |opt_alternatives| opt_alternatives.unwrap_or_else(Vec::new),
+            ),
+        )),
+    )(i)
 }
 
 /// Parses:
@@ -92,8 +111,11 @@ fn data_decl(i: &str) -> Res<DataDecl> {
             cut(tuple((
                 space::allowed::after(upper_ident),
                 preceded(
-                    space::allowed::after(char('=')),
-                    separated_nonempty_list(space::allowed::around(char('|')), data_variant_decl),
+                    char('='),
+                    separated_nonempty_list(
+                        space::allowed::before(char('|')),
+                        space::allowed::before(data_variant_decl),
+                    ),
                 ),
             ))),
         ),
@@ -164,10 +186,33 @@ fn rule_ref(i: &str) -> Res<RuleRef> {
 /// be able to be smashed up against any other (without whitespace) and be
 /// parseable.
 fn sentential_form(i: &str) -> Res<SententialForm> {
+    let unexpected_keyword = failure_case(alt((tag("rule"), tag("data"))), |kw| {
+        Typo::Custom(
+            "UNEXPECTED KEYWORD",
+            format!(
+                "I can't let you use an identifier named '{}' here. It's a \
+                reserved keyword.",
+                kw,
+            ),
+        )
+    });
+
+    let bad_data_interpolation = failure_case(anychar, |ch| {
+        Typo::Custom(
+            "BAD VALUE FOR DATA INTERPOLATION",
+            format!(
+                "I was expecting either the lowercase name of a data variant \
+                value, or the uppercase name of a data variant type. Instead I \
+                got {:?}.",
+                ch,
+            ),
+        )
+    });
+
     let (i, vec) = context(
         "a sentential form",
         separated_nonempty_list(
-            space::allowed::here,
+            space::required::here,
             alt((
                 map(quoted, Token::StrLit),
                 map(char('+'), |_| Token::Plus),
@@ -178,28 +223,8 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                         cut(alt((
                             map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
                             map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
-                            failure_case(alt((tag("rule"), tag("data"))), |kw| {
-                                Typo::Custom(
-                                    "UNEXPECTED KEYWORD",
-                                    format!(
-                                        "I can't let you use the '{}' keyword here. \
-                                        It's a reserved word.",
-                                        kw,
-                                    ),
-                                )
-                            }),
-                            failure_case(anychar, |ch| {
-                                Typo::Custom(
-                                    "BAD VALUE FOR DATA INTERPOLATION",
-                                    format!(
-                                        "I was expecting either the lowercase \
-                                        name of a data variant value, or the \
-                                        uppercase name of a data variant type. \
-                                        Instead I got {:?}.",
-                                        ch,
-                                    ),
-                                )
-                            }),
+                            unexpected_keyword,
+                            bad_data_interpolation,
                         ))),
                     ),
                 ),
