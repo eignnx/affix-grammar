@@ -1,5 +1,5 @@
 mod cli;
-use libaffix::{gen::Generator, parser::syntax::Grammar};
+use libaffix::{fault::DynamicErr, gen::Generator, parser::syntax::Grammar};
 use std::convert::TryFrom;
 use std::fs;
 use std::io::{self, Write};
@@ -28,8 +28,8 @@ fn main() -> io::Result<()> {
     println!();
     for _ in 0..cli_options.number {
         let sentence = match generator.generate() {
-            Ok(Some(sentence)) => sentence,
-            Ok(None) => {
+            Ok(sentence) => sentence,
+            Err(DynamicErr::MaxTrialsExceeded { .. }) => {
                 println!();
                 println!(
                     "[Max iterations ({}) exceeded and no new sentences found! \
@@ -53,11 +53,11 @@ fn main() -> io::Result<()> {
     'outer: while cli_options.interactive && resp.is_empty() {
         'inner: loop {
             match generator.generate() {
-                Ok(Some(sentence)) => {
+                Ok(sentence) => {
                     println!("\n\t\"{}\"\n", sentence);
                     break 'inner;
                 }
-                Ok(None) => {
+                Err(DynamicErr::MaxTrialsExceeded { .. }) => {
                     println!(
                         "[Max iterations ({}) exceeded and no new sentences found! \
                          This may mean all possible sentences have been generated.]",
