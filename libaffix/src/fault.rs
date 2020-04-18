@@ -48,10 +48,18 @@ pub enum DynamicErr {
     },
 
     #[error(
-        "I don't know how to print the datavariant '@{0}' in a \
+        "I don't know how to print the datavariant '@{symbol}' in a \
         user-friendly way!"
     )]
-    NoDataVariantStringification(internship::IStr),
+    NoDataVariantStringification { symbol: String },
+
+    #[error(
+        "Maximum iterations exceeded! This may indicate an unbounded recursive \
+        rule, or just that sentence complexity has increased beyond what was \
+        initially predicted. In the latter case, simply increase max trials \
+        from {trials} and try again."
+    )]
+    MaxTrialsExceeded { trials: usize },
 }
 
 #[derive(Debug, Serialize)]

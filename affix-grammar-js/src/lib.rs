@@ -27,10 +27,8 @@ impl ParserContext {
 
     #[wasm_bindgen]
     pub fn generate(&mut self) -> Result<String, JsValue> {
-        match self.generator.generate()? {
-            Some(sentence) => Ok(sentence),
-            None => Err("Max iterations execeeded.".into()),
-        }
+        let sentence = self.generator.generate()?;
+        Ok(sentence)
     }
 
     #[wasm_bindgen(setter = maxTrials)]

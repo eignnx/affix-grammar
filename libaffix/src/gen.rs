@@ -181,7 +181,9 @@ impl Generator {
         let backup = alternatives
             .iter()
             .choose(&mut *self.rng.borrow_mut())
-            .ok_or(DynamicErr::NoDataVariantStringification(variant.0.clone()))?;
+            .ok_or(DynamicErr::NoDataVariantStringification {
+                symbol: variant.0.as_str().into(),
+            })?;
         self.generate_non_unique_from_sentence(backup.clone())
     }
 
@@ -275,7 +277,7 @@ impl Generator {
         text
     }
 
-    pub fn generate<'gen, 'buf>(&'gen mut self) -> DynamicRes<Option<String>>
+    pub fn generate<'gen, 'buf>(&'gen mut self) -> DynamicRes<String>
     where
         'buf: 'gen,
     {
@@ -286,9 +288,11 @@ impl Generator {
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());
-                break Ok(Some(text));
+                break Ok(text);
             } else if trials >= self.max_trials {
-                break Ok(None);
+                break Err(DynamicErr::MaxTrialsExceeded {
+                    trials: self.max_trials,
+                });
             } else {
                 trials += 1;
             }
