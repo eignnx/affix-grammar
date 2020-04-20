@@ -1,0 +1,159 @@
+#################################################################
+## Iro
+################################################################ 
+##
+## * Press Ctrl + '+'/'-' To Zoom in
+## * Press Ctrl + S to save and recalculate... 
+## * Documents are saved to web storage.
+## * Only one save slot supported.
+## * Matches cannot span lines.
+## * Unicode chars must be defined in \u0000 to \uffff format.
+## * All matches must be contained by a single group ( ... )
+## * Look behinds not permitted, (?<= or (?<!
+## * Look forwards are permitted (?= or (?!
+## * Constants are defined as __my_const = (......)
+## * The \= format allows unescaped regular expressions
+## * Constants referenced by match \= $${__my_const}
+## * Constants can reference other constants
+## * You are free to delete all the default scopes.
+## * Twitter : ainslec , Web: http://eeyo.io/iro
+##
+################################################################
+
+name                   = affix
+file_extensions []     = affix;
+
+#################################################
+## Parse contexts
+#################################################
+
+contexts [] {
+
+   main : context {
+   
+      : pattern {
+         regex          \= (data|rule)
+         styles []       = .keyword;
+      }
+      
+      : inline_push {
+         regex \= (@?[A-Z][a-zA-Z]*)
+         styles [] = .upper_ident;
+         : pop {
+            regex \= (?=([\s\.]|^))
+            styles [] = ;
+         }
+         : pattern {
+            regex \= ([0-9]*)
+            styles [] = .variable_number;
+         }
+      }
+      
+      : pattern {
+         regex \= ((@?)[a-z0-9_]+)
+         styles [] = .lower_ident;
+      }
+      
+      : pattern {
+         regex \= (\*)
+         styles [] = .upper_ident;
+      }
+      
+      : inline_push {
+         regex          \= (\{)
+         styles []       = .punctuation;
+         : pop {  
+            regex       \= (\})
+            styles []    = .punctuation;
+         }
+         : include "main" ;
+      }
+      
+      : pattern {
+         regex          \= ([|.=+()]|->)
+         styles []       = .punctuation;
+      }
+      
+      : inline_push {
+         regex          \= (\")
+         styles []       = .text;
+         default_style   = .text
+         : pop {
+            regex       \= (\")
+            styles []    = .text;
+         }
+      }
+      
+      : pattern {
+         regex          \= (--.*)
+         styles []       = .comment;
+      }
+      
+      : pattern {
+         regex          \= ([^\s])
+         styles []       = .illegal;
+      }
+   }
+}
+
+
+################################################################
+## Styles
+################################################################
+
+styles [] {
+
+   .comment : style {
+      color                 = grey
+      italic                = true
+      ace_scope             = comment
+      textmate_scope        = comment
+      pygments_scope        = Comment
+   }
+   
+   .keyword : style {
+      color     = cyan
+      bold = true
+      ace_scope             = keyword
+      textmate_scope        = keyword
+      pygments_scope        = Keyword
+   }
+   
+   .lower_ident : style {
+      color = gold
+   }
+   
+   .upper_ident : style {
+      color = light_blue
+   }
+   
+   .variable_number : style {
+      color = light_blue
+      bold = true
+   }
+   
+   .punctuation : style {
+      color                 = white
+      bold                  = true
+      ace_scope             = punctuation
+      textmate_scope        = keyword.operator
+      pygments_scope        = Punctuation
+   }
+   
+   .text : style {
+      color                 = yellow
+      italic = false
+      bold = true
+      ace_scope             = text
+      textmate_scope        = text
+      pygments_scope        = String
+   }
+   
+   .illegal : style {
+      color                 = white
+      background_color      = red
+      ace_scope             = invalid
+      textmate_scope        = invalid
+      pygments_scope        = Generic.Error
+   }
+}
