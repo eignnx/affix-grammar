@@ -60,6 +60,16 @@ pub enum DynamicErr {
         from {trials} and try again."
     )]
     MaxTrialsExceeded { trials: usize },
+
+    #[error(
+        "I got the wrong number of values sent to the rule '{rule_name}'! These \
+        values were passed in: {arguments:?} but I needed {expected_len} values!"
+    )]
+    WrongArityRuleReference {
+        rule_name: String,
+        arguments: Vec<String>,
+        expected_len: usize,
+    },
 }
 
 #[derive(Debug, Serialize)]

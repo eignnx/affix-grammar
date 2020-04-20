@@ -86,7 +86,7 @@ impl Generator {
         for case in &rule.cases {
             let param_typs = &rule.signature.parameter_types;
             let reqs = &case.guard;
-            if self.allowable(&param_typs, reqs, arguments) {
+            if self.allowable(rule_name, &param_typs, reqs, arguments)? {
                 return Ok(case.clone());
             }
         }
@@ -100,23 +100,22 @@ impl Generator {
 
     fn allowable(
         &self,
+        rule_name: &RuleName,
         _types: &Vec<DataName>,
         guard: &Guard,
         arguments: &Vec<DataVariant>,
-    ) -> bool {
+    ) -> DynamicRes<bool> {
         // TODO: add type checking here? When ready, use the currently-unused `_types` parameter.
         if guard.requirements.len() != arguments.len() {
-            // TODO: how should we handle missing types?
-            //       Is `foo.X1.Y1` == `foo.X1` == `foo`?
-            // TODO: add better context to this error i.e. what rule name? where was it called?
-            panic!(
-                "Wrong number of arguments! Got values {:?} but needed {} values!",
+            let arguments = arguments.iter().map(|val| val.0.as_str().into()).collect();
+            return Err(DynamicErr::WrongArityRuleReference {
+                rule_name: rule_name.0.as_str().into(),
                 arguments,
-                guard.requirements.len()
-            );
+                expected_len: guard.requirements.len(),
+            });
         }
 
-        guard
+        let res = guard
             .requirements
             .iter()
             .zip(arguments.iter())
@@ -124,7 +123,8 @@ impl Generator {
                 // Pattern::Star (`.*`) matches against any actual variant.
                 Pattern::Star => true,
                 Pattern::Variant(v) => v == arg,
-            })
+            });
+        Ok(res)
     }
 
     /// Given a variable name, if the current state already has a binding for
