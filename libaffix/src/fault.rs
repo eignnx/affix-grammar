@@ -47,6 +47,19 @@ pub enum DynamicErr {
                            // TODO: move this into semantic analysis phase, not runtime
     },
 
+    #[error("I'm not sure what the symbol '{symbol}' refers to. Did you mistype?")]
+    UnboundSymbol { symbol: String },
+
+    #[error(
+        "Ambiguous variable name '{symbol}'! Could refer to either \
+        '{possibility1}' or '{possibility2}'."
+    )]
+    AmbiguousSymbol {
+        symbol: String,
+        possibility1: String,
+        possibility2: String,
+    },
+
     #[error(
         "I don't know how to print the datavariant '@{symbol}' in a \
         user-friendly way!"

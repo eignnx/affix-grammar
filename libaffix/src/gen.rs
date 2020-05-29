@@ -136,8 +136,8 @@ impl Generator {
         &self,
         var: &DataVariable,
         state: &'st mut State,
-    ) -> &'st mut DataVariant {
-        state.entry(var.clone()).or_insert_with(|| {
+    ) -> DynamicRes<&'st mut DataVariant> {
+        Ok(state.entry(var.clone()).or_insert({
             let mut iter = self
                 .grammar
                 .data_decls
@@ -147,20 +147,19 @@ impl Generator {
                 .next()
                 .expect(&format!("a rule matching {:?} exists", var));
             let more = iter.next();
-            assert_eq!(
-                more,
-                None,
-                "Ambiguous variable name {:?}! Could refer to either {:?} or {:?}",
-                var,
-                res.name,
-                more.unwrap().name
-            );
+            if let Some(more_name) = more {
+                return Err(DynamicErr::AmbiguousSymbol {
+                    symbol: var.0.to_string(),
+                    possibility1: res.name.0.to_string(),
+                    possibility2: more_name.name.0.to_string(),
+                });
+            }
             res.variants
                 .keys()
                 .choose(&mut *self.rng.borrow_mut())
                 .expect("no data decl has 0 variants")
                 .clone()
-        })
+        }))
     }
 
     fn stringify_data_variant<'gen, 'buf>(
@@ -176,8 +175,14 @@ impl Generator {
             .iter()
             .filter(|decl| decl.variants.contains_key(&variant))
             .next()
-            .expect("Unrecognized symbol");
-        let alternatives = decl.variants.get(&variant).unwrap().clone();
+            .ok_or(DynamicErr::UnboundSymbol {
+                symbol: variant.0.as_str().into(),
+            })?;
+        let alternatives = decl
+            .variants
+            .get(&variant)
+            .unwrap() // Can't panic because of previous `filter`.
+            .clone();
         let backup = alternatives
             .iter()
             .choose(&mut *self.rng.borrow_mut())
@@ -219,23 +224,24 @@ impl Generator {
                     new_sentence.append(to_append);
                 }
                 Token::DataVariable(ref variable) => {
-                    let variant = self.value_of_variable(variable, &mut state).clone();
+                    let variant = self.value_of_variable(variable, &mut state)?.clone();
                     let to_append = self.stringify_data_variant(variant)?;
                     new_sentence.append(to_append);
                 }
                 Token::RuleRef(RuleRef { ref rule, ref vars }) => {
                     // Ensure each of `vars` has a binding.
-                    let arguments: Vec<DataVariant> = vars
-                        .iter()
-                        .map(|arg| match arg {
+                    let mut arguments = vec![];
+                    for arg in vars {
+                        match arg {
                             // This is a case like `they.Number` where a variable is being passed in.
                             Argument::Variable(var) => {
-                                self.value_of_variable(var, &mut state).clone()
+                                let thing = self.value_of_variable(var, &mut state)?.clone();
+                                arguments.push(thing);
                             }
                             // This is a case like `they.singular` where a data-variant is being passed in.
-                            Argument::Variant(val) => val.clone(),
-                        })
-                        .collect();
+                            Argument::Variant(val) => arguments.push(val.clone()),
+                        }
+                    }
 
                     // Search the grammar's rules via `self.choose_rule`.
                     // If no rule cases are viable, panic.
