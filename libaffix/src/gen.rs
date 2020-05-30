@@ -1,7 +1,7 @@
 use crate::fault::{DynamicErr, DynamicRes};
 use crate::parser::syntax::{
-    Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern, RuleName,
-    RuleRef, Token,
+    abbreviates, Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
+    RuleName, RuleRef, Token,
 };
 use im::{vector, Vector};
 use internship::IStr;
@@ -122,7 +122,9 @@ impl Generator {
             .all(|(req, arg)| match req {
                 // Pattern::Star (`.*`) matches against any actual variant.
                 Pattern::Star => true,
-                Pattern::Variant(v) => v == arg,
+                Pattern::Variant(patt_variant) => {
+                    abbreviates(patt_variant.0.as_str(), arg.0.as_str())
+                }
             });
         Ok(res)
     }
@@ -239,7 +241,43 @@ impl Generator {
                                 arguments.push(thing);
                             }
                             // This is a case like `they.singular` where a data-variant is being passed in.
-                            Argument::Variant(val) => arguments.push(val.clone()),
+                            // We need to canonicalize this name in case it is an abbreviation.
+                            Argument::Variant(val) => {
+                                // Search through all data declarations for variants that `val` is
+                                // an abbreviation of. Collect all those variants.
+                                // TODO: use the "type signature" of the rule to narrow this search.
+                                let canonicalizations: Vec<_> = self
+                                    .grammar
+                                    .data_decls
+                                    .iter()
+                                    .flat_map(|decl| {
+                                        decl.variants.iter().filter(|(variant, _reprs)| {
+                                            abbreviates(val.0.as_str(), variant.0.as_str())
+                                        })
+                                    })
+                                    .collect();
+
+                                // If there's more than one possibility, that's an ambiguity.
+                                if canonicalizations.len() > 1 {
+                                    let (possibility1, _reprs) = canonicalizations[0];
+                                    let (possibility2, _reprs) = canonicalizations[1];
+                                    return Err(DynamicErr::AmbiguousSymbol {
+                                        symbol: val.0.to_string(),
+                                        possibility1: possibility1.0.to_string(),
+                                        possibility2: possibility2.0.to_string(),
+                                    });
+                                }
+
+                                // Take the first one, and if there are none, that's an unbound
+                                // symbol error.
+                                let (val, _reprs) = canonicalizations.first().ok_or_else(|| {
+                                    DynamicErr::UnboundSymbol {
+                                        symbol: val.0.to_string(),
+                                    }
+                                })?;
+
+                                arguments.push((*val).clone())
+                            }
                         }
                     }
 

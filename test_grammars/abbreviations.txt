@@ -3,8 +3,8 @@ data Gender = masculine | feminine | neuter
 -- "she is Freida and he is Hans and they are Jesse."
 -- "sie ist nett und er ist nett und sie sind nett."
 rule start =
-    they.Gender1 "ist" name.Gender1 "und" they.Gender2 "ist" name.Gender2 "und"
-    they.Gender3 "ist" name.Gender3 + "."
+    they.G1 "ist" name.G1 "und" they.G2 "ist" name.Gr2 "und"
+    they.Gndr3 "ist" name.e + "."
 
 rule they.Gender =
     .masculine -> "er"
@@ -12,6 +12,6 @@ rule they.Gender =
     .neuter -> "es"
 
 rule name.Gender =
-    .masculine -> "Hans"
+    .e -> "Hans"
     .feminine -> "Freida"
     .neuter -> "Jesse"

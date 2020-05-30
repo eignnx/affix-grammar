@@ -22,20 +22,62 @@ pub struct RuleName(pub IStr);
 
 /// A variable that represents a data variant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DataVariable(pub IStr);
+pub struct DataVariable(pub IStr, pub u32);
 
 /// The name of a data-type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataName(pub IStr);
 
+/// A predicate function that determines if one word (`abbr`) abbreviates the
+/// other (`src`). See doctests for examples.
+///
+/// ```
+/// # use libaffix::parser::syntax::abbreviates;
+/// assert!(abbreviates("G", "Gender"));
+/// assert!(abbreviates("Gend", "Gender"));
+/// assert!(abbreviates("Gndr", "Gender"));
+/// assert!(abbreviates("Gender", "Gender"));
+/// assert!(!abbreviates("Genderific", "Gender"));
+///
+/// assert!(!abbreviates("", "Whatever"));
+///
+/// assert!(abbreviates("A", "Argument"));
+/// assert!(abbreviates("Arg", "Argument"));
+/// assert!(abbreviates("Art", "Argument"));
+///
+/// assert!(abbreviates("A", "Archetype"));
+/// assert!(abbreviates("Arch", "Archetype"));
+/// assert!(abbreviates("Art", "Archetype"));
+///
+/// assert!(abbreviates("n", "neutral"));
+/// assert!(abbreviates("neut", "neutral"));
+/// assert!(abbreviates("ntrl", "neutral"));
+///
+/// assert!(!abbreviates("cow", "horse"));
+///
+/// assert!(abbreviates("Nat", "NaturalNumber"));
+/// assert!(abbreviates("Num", "NaturalNumber"));
+/// assert!(abbreviates("NN", "NaturalNumber"));
+/// assert!(!abbreviates("NNN", "NaturalNumber"));
+/// ```
+pub fn abbreviates(mut abbr: &str, src: &str) -> bool {
+    if abbr.is_empty() {
+        return false;
+    }
+    for ch in src.chars() {
+        if abbr.starts_with(ch) {
+            abbr = &abbr[1..];
+        }
+    }
+    abbr.is_empty()
+}
+
 impl DataName {
     /// Performs an equality check with a `DataVariable` since a `DataVariable`
-    /// can have a numeric suffix to distinguish it.
-    pub fn matches_variable(&self, variable: &DataVariable) -> bool {
-        let DataVariable(var_txt) = variable;
-        let var_without_nums = var_txt.as_str().trim_end_matches(char::is_numeric);
-        let DataName(name) = self;
-        name.as_str().starts_with(var_without_nums)
+    /// can be abbreviated.
+    pub fn matches_variable(&self, DataVariable(var_name, _number): &DataVariable) -> bool {
+        let DataName(data_name) = self;
+        abbreviates(var_name, data_name)
     }
 }
 

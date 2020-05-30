@@ -10,7 +10,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::{anychar, char, one_of},
-    combinator::{all_consuming, cut, map, opt, recognize, verify},
+    combinator::{all_consuming, cut, map, map_res, opt, recognize, verify},
     error::context,
     multi::{many0, many1, separated_nonempty_list},
     sequence::{delimited, preceded, tuple},
@@ -50,6 +50,21 @@ fn upper_ident(i: &str) -> Res<IStr> {
         )),
     )(i)?;
     Ok((i, IStr::new(name)))
+}
+
+/// Parses an `upper_ident` then an optional `u32`. If no `u32` is provided,
+/// it defaults to zero. Examples: `Person`, `Person1`, `Person321`, `Person0`
+fn variable(i: &str) -> Res<DataVariable> {
+    let parse_u32 = map_res(recognize(many0(one_of("0123456789"))), |slice: &str| {
+        if slice.is_empty() {
+            Ok(0)
+        } else {
+            slice.parse::<u32>()
+        }
+    });
+    let (i, name) = upper_ident(i)?;
+    let (i, number) = parse_u32(i)?;
+    Ok((i, DataVariable(name, number)))
 }
 
 fn quoted(i: &str) -> Res<IStr> {
@@ -136,7 +151,7 @@ fn parse_data_decl() {
 /// `story.short.to_the_point`.
 fn argument(i: &str) -> Res<Argument> {
     alt((
-        map(upper_ident, |ident| Argument::Variable(DataVariable(ident))),
+        map(variable, Argument::Variable),
         map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
         failure_case(char('*'), |_| {
             Typo::Custom(
@@ -206,7 +221,7 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                         "a data interpolation",
                         cut(alt((
                             map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
-                            map(upper_ident, |sym| Token::DataVariable(DataVariable(sym))),
+                            map(variable, Token::DataVariable),
                             unexpected_keyword,
                             bad_data_interpolation,
                         ))),
@@ -252,9 +267,9 @@ fn pattern(i: &str) -> Res<Pattern> {
                     "UNSUPPORTED USE OF VARIABLE IN PATTERN",
                     format!(
                         "I see you're trying to use a variable in a guard pattern! \
-                    Cool! Unfortunately I don't know how to handle that \
-                    ...yet. See this issue if you want to help implement this \
-                    behavior: https://github.com/eignnx/affix-grammar/issues/3"
+                        Cool! Unfortunately I don't know how to handle that \
+                        ...yet. See this issue if you want to help implement this \
+                        behavior: https://github.com/eignnx/affix-grammar/issues/3"
                     ),
                 )
             }),
