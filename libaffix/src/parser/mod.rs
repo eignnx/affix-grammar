@@ -10,7 +10,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::{anychar, char, one_of},
-    combinator::{all_consuming, cut, map, map_res, opt, recognize, verify},
+    combinator::{all_consuming, cut, map, opt, recognize, verify},
     error::context,
     multi::{many0, many1, separated_nonempty_list},
     sequence::{delimited, preceded, tuple},
@@ -52,19 +52,24 @@ fn upper_ident(i: &str) -> Res<IStr> {
     Ok((i, IStr::new(name)))
 }
 
-/// Parses an `upper_ident` then an optional `u32`. If no `u32` is provided,
-/// it defaults to zero. Examples: `Person`, `Person1`, `Person321`, `Person0`
+/// Parses an `upper_ident` then an optional numeric suffix.
+/// Examples: `Person`, `Person1`, `Person321`, `Person0`
 fn variable(i: &str) -> Res<DataVariable> {
-    let parse_u32 = map_res(recognize(many0(one_of("0123456789"))), |slice: &str| {
-        if slice.is_empty() {
-            Ok(0)
-        } else {
-            slice.parse::<u32>()
-        }
-    });
     let (i, name) = upper_ident(i)?;
-    let (i, number) = parse_u32(i)?;
-    Ok((i, DataVariable(name, number)))
+    let (i, number) = take_while(char::is_numeric)(i)?;
+    Ok((i, DataVariable(name, number.into())))
+}
+
+#[test]
+fn parse_variable() {
+    let (_rest, actual) = variable("Gender123").unwrap();
+    assert_eq!(actual, DataVariable("Gender".into(), "123".into()));
+
+    let (_rest, actual) = variable("Gender①②③").unwrap();
+    assert_eq!(actual, DataVariable("Gender".into(), "①②③".into()));
+
+    let (_rest, actual) = variable("Gender").unwrap();
+    assert_eq!(actual, DataVariable("Gender".into(), "".into()));
 }
 
 fn quoted(i: &str) -> Res<IStr> {
@@ -85,7 +90,7 @@ fn data_variant_decl(i: &str) -> Res<(DataVariant, Vec<SententialForm>)> {
     context(
         "a single data variant",
         tuple((
-            space::required::after(map(lower_ident, DataVariant)),
+            space::allowed::after(map(lower_ident, DataVariant)),
             map(
                 opt(delimited(
                     char('('),
@@ -111,10 +116,10 @@ fn data_decl(i: &str) -> Res<DataDecl> {
                 space::allowed::after(upper_ident),
                 preceded(
                     char('='),
-                    separated_nonempty_list(
+                    cut(separated_nonempty_list(
                         space::allowed::before(char('|')),
                         space::allowed::before(data_variant_decl),
-                    ),
+                    )),
                 ),
             ))),
         ),
@@ -262,17 +267,7 @@ fn pattern(i: &str) -> Res<Pattern> {
         alt((
             map(char('*'), |_| Pattern::Star),
             map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
-            failure_case(upper_ident, |_| {
-                Typo::Custom(
-                    "UNSUPPORTED USE OF VARIABLE IN PATTERN",
-                    format!(
-                        "I see you're trying to use a variable in a guard pattern! \
-                        Cool! Unfortunately I don't know how to handle that \
-                        ...yet. See this issue if you want to help implement this \
-                        behavior: https://github.com/eignnx/affix-grammar/issues/3"
-                    ),
-                )
-            }),
+            map(variable, Pattern::Variable),
         )),
     )(i)
 }
@@ -507,11 +502,11 @@ pub fn parse(i: &str) -> Res<Grammar> {
         )
     });
 
-    let (i, decls) = all_consuming(space::allowed::before(context(
+    let (i, decls) = all_consuming(space::allowed::after(context(
         "the full grammar",
         many0(context(
             "a top-level definition",
-            space::allowed::after(alt((
+            space::allowed::before(alt((
                 map(data_decl, Decl::Data),
                 map(rule_decl, Decl::Rule),
                 malformed_keyword,

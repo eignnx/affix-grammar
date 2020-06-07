@@ -1,12 +1,14 @@
 use im::Vector;
 use internship::IStr;
 use std::collections::HashMap;
+use std::fmt;
 
 /// Can appear in a case-analysis in the body of a rule.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     Star,
     Variant(DataVariant),
+    Variable(DataVariable),
 }
 
 /// The values or variables passed to a rule when it is referenced (called).
@@ -20,13 +22,50 @@ pub enum Argument {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleName(pub IStr);
 
+impl AsRef<str> for RuleName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for RuleName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
+
 /// A variable that represents a data variant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DataVariable(pub IStr, pub u32);
+pub struct DataVariable(pub IStr, pub IStr);
+
+impl AsRef<str> for DataVariable {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for DataVariable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let DataVariable(name, number) = self;
+        write!(f, "{}{}", name, number)
+    }
+}
 
 /// The name of a data-type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataName(pub IStr);
+
+impl AsRef<str> for DataName {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for DataName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
 
 /// A predicate function that determines if one word (`abbr`) abbreviates the
 /// other (`src`). See doctests for examples.
@@ -84,6 +123,18 @@ impl DataName {
 /// The name of a variant of a data-type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataVariant(pub IStr);
+
+impl AsRef<str> for DataVariant {
+    fn as_ref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for DataVariant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
 
 /// The "call site" of a rule. Includes variables that should be referenced inside the call.
 #[derive(Debug, Clone, PartialEq)]

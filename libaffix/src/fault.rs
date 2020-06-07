@@ -83,6 +83,19 @@ pub enum DynamicErr {
         arguments: Vec<String>,
         expected_len: usize,
     },
+
+    // TODO: rewrite this error message when code line-column can be provided!
+    #[error(
+        "It looks like you're assuming that a '{pattern_type}' value will be \
+        matched here, but in actuality, only values of type '{argument_type}' \
+        will reach this point of the case analysis. Where you ask? Search for \
+        a case arm with a pattern variable named '{pattern_variable}'."
+    )]
+    PatternMatchTypeError {
+        pattern_type: String,
+        argument_type: String,
+        pattern_variable: String,
+    },
 }
 
 #[derive(Debug, Serialize)]
