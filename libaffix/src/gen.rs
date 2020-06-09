@@ -135,10 +135,11 @@ impl Generator {
                     }
                 }
                 Pattern::Variable(var) => {
-                    let variable_decl = self.data_decl_from_abbr_variable(var)?;
+                    let variable_decl = self.grammar.data_decl_from_abbr_variable(var)?;
                     if !variable_decl.variants.contains_key(arg) {
                         let pattern_type = variable_decl.name.to_string();
-                        let (variant_decl, _variant) = self.data_decl_from_abbr_variant(arg)?;
+                        let (variant_decl, _variant) =
+                            self.grammar.data_decl_from_abbr_variant(arg)?;
                         let argument_type = variant_decl.name.to_string();
                         return Err(DynamicErr::PatternMatchTypeError {
                             pattern_type,
@@ -155,83 +156,6 @@ impl Generator {
         }
 
         Ok(Some(state))
-    }
-
-    /// Given a `DataVariable`, this function will perform a lookup in the
-    /// grammar and return the `DataDecl` that the variable refers to. Fails if
-    /// no `DataDecl` matches the variable, or if the variable is ambiguous and
-    /// could refer to multiple `DataDecl`s.
-    fn data_decl_from_abbr_variable<'grammar>(
-        &'grammar self,
-        var: &DataVariable,
-    ) -> DynamicRes<&'grammar DataDecl> {
-        let mut matches = self
-            .grammar
-            .data_decls
-            .iter()
-            .filter(|decl| decl.name.matches_variable(var));
-
-        let DataVariable(name, _num) = var;
-
-        let first = matches.next().ok_or_else(|| DynamicErr::UnboundSymbol {
-            symbol: name.to_string(),
-        })?;
-
-        if let Some(second) = matches.next() {
-            let DataName(fst) = &first.name;
-            let DataName(snd) = &second.name;
-            return Err(DynamicErr::AmbiguousSymbol {
-                symbol: name.to_string(),
-                possibility1: fst.to_string(),
-                possibility2: snd.to_string(),
-            });
-        }
-
-        Ok(first)
-    }
-
-    fn data_decl_from_abbr_variant<'grammar>(
-        &'grammar self,
-        variant: &DataVariant,
-    ) -> DynamicRes<(&'grammar DataDecl, &'grammar DataVariant)> {
-        let variant_name = variant.as_ref();
-
-        // Search through all data declarations for variants that `val` is
-        // an abbreviation of. Collect all those variants.
-        // TODO: use the "type signature" of the rule to narrow this search.
-        let mut canonicalizations = self.grammar.data_decls.iter().flat_map(|decl| {
-            decl.variants
-                .iter()
-                .filter_map(move |(other_variant, _reprs)| {
-                    let DataVariant(other_name) = other_variant;
-                    if abbreviates(variant_name, other_name.as_str()) {
-                        Some((decl, other_variant))
-                    } else {
-                        None
-                    }
-                })
-        });
-
-        // Take the first one, and if there are none, that's an unbound
-        // symbol error.
-        let first = canonicalizations
-            .next()
-            .ok_or_else(|| DynamicErr::UnboundSymbol {
-                symbol: variant_name.to_string(),
-            })?;
-
-        // If there's more than one possibility, that's an ambiguity.
-        if let Some(second) = canonicalizations.next() {
-            let (decl1, DataVariant(possibility1)) = first;
-            let (decl2, DataVariant(possibility2)) = second;
-            return Err(DynamicErr::AmbiguousSymbol {
-                symbol: variant_name.to_string(),
-                possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
-                possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
-            });
-        }
-
-        Ok(first)
     }
 
     /// Given a variable name, if the current state already has a binding for
@@ -354,7 +278,8 @@ impl Generator {
                             // This is a case like `they.singular` where a data-variant is being passed in.
                             // We need to canonicalize this name in case it is an abbreviation.
                             Argument::Variant(variant) => {
-                                let (_decl, variant) = self.data_decl_from_abbr_variant(variant)?;
+                                let (_decl, variant) =
+                                    self.grammar.data_decl_from_abbr_variant(variant)?;
                                 arguments.push((*variant).clone())
                             }
                         }

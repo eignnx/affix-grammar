@@ -1,3 +1,4 @@
+use crate::fault::{DynamicErr, DynamicRes};
 use im::Vector;
 use internship::IStr;
 use std::collections::HashMap;
@@ -198,4 +199,82 @@ pub struct RuleDecl {
 pub struct Grammar {
     pub data_decls: Vec<DataDecl>,
     pub rule_decls: Vec<RuleDecl>,
+}
+
+impl Grammar {
+    /// Given a `DataVariable`, this function will perform a lookup in the
+    /// grammar and return the `DataDecl` that the variable refers to. Fails if
+    /// no `DataDecl` matches the variable, or if the variable is ambiguous and
+    /// could refer to multiple `DataDecl`s.
+    pub fn data_decl_from_abbr_variable<'grammar>(
+        &'grammar self,
+        var: &DataVariable,
+    ) -> DynamicRes<&'grammar DataDecl> {
+        let mut matches = self
+            .data_decls
+            .iter()
+            .filter(|decl| decl.name.matches_variable(var));
+
+        let DataVariable(name, _num) = var;
+
+        let first = matches.next().ok_or_else(|| DynamicErr::UnboundSymbol {
+            symbol: name.to_string(),
+        })?;
+
+        if let Some(second) = matches.next() {
+            let DataName(fst) = &first.name;
+            let DataName(snd) = &second.name;
+            return Err(DynamicErr::AmbiguousSymbol {
+                symbol: name.to_string(),
+                possibility1: fst.to_string(),
+                possibility2: snd.to_string(),
+            });
+        }
+
+        Ok(first)
+    }
+
+    pub fn data_decl_from_abbr_variant<'grammar>(
+        &'grammar self,
+        variant: &DataVariant,
+    ) -> DynamicRes<(&'grammar DataDecl, &'grammar DataVariant)> {
+        let variant_name = variant.as_ref();
+
+        // Search through all data declarations for variants that `val` is
+        // an abbreviation of. Collect all those variants.
+        // TODO: use the "type signature" of the rule to narrow this search.
+        let mut canonicalizations = self.data_decls.iter().flat_map(|decl| {
+            decl.variants
+                .iter()
+                .filter_map(move |(other_variant, _reprs)| {
+                    let DataVariant(other_name) = other_variant;
+                    if abbreviates(variant_name, other_name.as_str()) {
+                        Some((decl, other_variant))
+                    } else {
+                        None
+                    }
+                })
+        });
+
+        // Take the first one, and if there are none, that's an unbound
+        // symbol error.
+        let first = canonicalizations
+            .next()
+            .ok_or_else(|| DynamicErr::UnboundSymbol {
+                symbol: variant_name.to_string(),
+            })?;
+
+        // If there's more than one possibility, that's an ambiguity.
+        if let Some(second) = canonicalizations.next() {
+            let (decl1, DataVariant(possibility1)) = first;
+            let (decl2, DataVariant(possibility2)) = second;
+            return Err(DynamicErr::AmbiguousSymbol {
+                symbol: variant_name.to_string(),
+                possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
+                possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
+            });
+        }
+
+        Ok(first)
+    }
 }
