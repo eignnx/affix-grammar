@@ -1,24 +1,17 @@
 use crate::fault::{DynamicErr, DynamicRes};
 use crate::parser::syntax::{
-    abbreviates, Abbr, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar,
-    Guard, Pattern, RuleDecl, RuleName, RuleRef, Token,
+    abbreviates, Abbr, Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard,
+    Pattern, RuleDecl, RuleName, RuleRef, Token,
 };
 use im::{vector, Vector};
 use internship::IStr;
 use rand::seq::IteratorRandom;
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
 };
 
-type State = HashMap<DataVariable, DataVariant>;
-
-pub struct Generator {
-    grammar: Grammar,
-    rng: RefCell<rand::rngs::ThreadRng>,
-    seen_sentences: HashSet<im::Vector<OutToken>>,
-    pub max_trials: usize,
-}
+type State = BTreeMap<DataVariable, DataVariant>;
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
 enum OutToken {
@@ -55,6 +48,24 @@ impl From<&IStr> for OutToken {
 
 const DEFAULT_MAX_TRIALS: usize = 1000;
 
+pub struct Generator<Rand: rand::Rng = rand::rngs::ThreadRng> {
+    grammar: Grammar,
+    rng: RefCell<Rand>,
+    seen_sentences: HashSet<im::Vector<OutToken>>,
+    pub max_trials: usize,
+}
+
+impl Generator<rand::rngs::StdRng> {
+    pub fn new_seeded(grammar: Grammar, seed: u64) -> Self {
+        Self {
+            grammar,
+            rng: RefCell::new(rand::SeedableRng::seed_from_u64(seed)),
+            seen_sentences: HashSet::new(),
+            max_trials: DEFAULT_MAX_TRIALS,
+        }
+    }
+}
+
 impl Generator {
     pub fn new(grammar: Grammar) -> Self {
         Self {
@@ -64,7 +75,12 @@ impl Generator {
             max_trials: DEFAULT_MAX_TRIALS,
         }
     }
+}
 
+impl<Rand> Generator<Rand>
+where
+    Rand: rand::Rng,
+{
     fn choose_case<'gen, 'st>(
         &'gen self,
         rule_decl: &RuleDecl,

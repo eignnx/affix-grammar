@@ -1,0 +1,30 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Ok": [
+    "Hello Pauli-Plauli-Paul. Are you Paul Simon?",
+    "Hello Paul Simon. Are you Paul Simon?",
+    "Hello Art Garfunkel. Are you Paul Simon?",
+    "Hello Art Garfunkel. Are you Pauli-Plauli-Paul?",
+    "Hello Pauli-Plauli-Paul. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'Art Garfunkel'. Are you Paul Simon?",
+    "Hello Paul Simon. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel'''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'Art Garfunkel'. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel'''''. Are you Paul Simon?",
+    "Hello the musician known only as 'the musician known only as 'Art Garfunkel''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'Art Garfunkel''. Are you Paul Simon?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel''''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel'''. Are you Paul Simon?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel''''. Are you Paul Simon?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel''''''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel'''''''. Are you Paul Simon?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel''''''''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel'''''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel'''''''''. Are you Pauli-Plauli-Paul?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel''''''. Are you Paul Simon?",
+    "Hello the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'the musician known only as 'Art Garfunkel''''''''''. Are you Paul Simon?"
+  ]
+}

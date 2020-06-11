@@ -1,0 +1,123 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "Java",
+        "variants": {
+          "a": []
+        }
+      },
+      {
+        "name": "JavaScript",
+        "variants": {
+          "b": []
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "foo",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "J",
+                          "1"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "bar",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "J",
+                          "2"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": "!"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "foo",
+          "parameter_types": [
+            "JavaScript"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "a"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "a"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "bar",
+          "parameter_types": [
+            "Java"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "b"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "b"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Ok": [
+    "you went to the store.",
+    "they went to the store.",
+    "he went to the store.",
+    "I went to the store.",
+    "we went to the store.",
+    "she went to the store.",
+    "it went to the store.",
+    "y'all went to the store.",
+    "you guys went to the store."
+  ]
+}

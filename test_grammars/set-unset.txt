@@ -1,8 +1,0 @@
-start --> {:plural} foo
-        | foo
-        ;
-
-foo -{:plural}-> "foos"
-    | "foo"
-    -{:plural}-> {!plural} "no. exactly one" foo
-    ;

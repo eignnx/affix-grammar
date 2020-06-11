@@ -1,7 +1,0 @@
-start --> pick_hero story;
-
-pick_hero --> {hero: "knight"} | {hero: "superhero"} | {hero: "citizen"};
-
-story --> "The" adj {hero} "fights the" adj "monster. Go" {hero} "go!";
-
-adj --> "blue" | "unhappy" | "vengeful" | "begrudging" | "concerned";

@@ -1,0 +1,566 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "Subject",
+        "variants": {
+          "dog": [],
+          "cow": [],
+          "marmot": [],
+          "hedgehog": []
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "english_sentence",
+                    "vars": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "english_sentence",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "the"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "eats"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "object",
+                    "vars": []
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": "."
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "hits"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "object",
+                    "vars": []
+                  }
+                },
+                {
+                  "StrLit": "with a bat."
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "stumbles upon"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "object",
+                    "vars": []
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "when",
+                    "vars": []
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": "."
+                }
+              ],
+              [
+                {
+                  "StrLit": "look at that"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          "1"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "go. go"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          "1"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": ", go."
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "began setting"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "object",
+                    "vars": []
+                  }
+                },
+                {
+                  "StrLit": "on fire."
+                }
+              ],
+              [
+                {
+                  "RuleRef": {
+                    "rule": "english_sentence",
+                    "vars": []
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "connective",
+                    "vars": []
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": ","
+                },
+                {
+                  "RuleRef": {
+                    "rule": "english_sentence",
+                    "vars": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "when",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "while on their morning walk"
+                }
+              ],
+              [
+                {
+                  "StrLit": "during their annual checkup"
+                }
+              ],
+              [
+                {
+                  "StrLit": "upon stepping outdoors"
+                }
+              ],
+              [
+                {
+                  "StrLit": "while mother is out"
+                }
+              ],
+              [
+                {
+                  "StrLit": "under the cover of darkness"
+                }
+              ],
+              [
+                {
+                  "StrLit": "at the corner store"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "subject",
+          "parameter_types": [
+            "Subject"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "dog"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "dog"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "cow"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "cow"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "hedgehog"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "hedgehog"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "marmot"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "marmot"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "object",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "the chair"
+                }
+              ],
+              [
+                {
+                  "StrLit": "the couch"
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": "'s lunch"
+                }
+              ],
+              [
+                {
+                  "StrLit": "an extremely loud"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "S",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ],
+              [
+                {
+                  "StrLit": "an obscene amount of"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "uncountable_thing",
+                    "vars": []
+                  }
+                }
+              ],
+              [
+                {
+                  "StrLit": "a steaming pile of"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "uncountable_thing",
+                    "vars": []
+                  }
+                }
+              ],
+              [
+                {
+                  "StrLit": "a lifetime supply of"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "uncountable_thing",
+                    "vars": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "uncountable_thing",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "jelly"
+                }
+              ],
+              [
+                {
+                  "StrLit": "tuna"
+                }
+              ],
+              [
+                {
+                  "StrLit": "bees"
+                }
+              ],
+              [
+                {
+                  "StrLit": "fruit-flies"
+                }
+              ],
+              [
+                {
+                  "StrLit": "medical bills"
+                }
+              ],
+              [
+                {
+                  "StrLit": "caramel"
+                }
+              ],
+              [
+                {
+                  "StrLit": "ketchup and mustard"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "connective",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "unfortunately"
+                }
+              ],
+              [
+                {
+                  "StrLit": "but later that day"
+                }
+              ],
+              [
+                {
+                  "StrLit": "with the greatest of ease"
+                }
+              ],
+              [
+                {
+                  "StrLit": "with a twitch of it's nose"
+                }
+              ],
+              [
+                {
+                  "StrLit": "in the blink of an eye"
+                }
+              ],
+              [
+                {
+                  "StrLit": "having completed the task at hand"
+                }
+              ],
+              [
+                {
+                  "StrLit": "having exhausted their options"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

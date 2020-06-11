@@ -1,0 +1,13 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Err": {
+    "AmbiguousSymbol": {
+      "symbol": "e",
+      "possibility1": "Gender::neuter",
+      "possibility2": "Gender::masculine"
+    }
+  }
+}

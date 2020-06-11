@@ -1,0 +1,184 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "Bit",
+        "variants": {
+          "0": [],
+          "1": []
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "odd_or_even_pair",
+                    "vars": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "odd_or_even_pair",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "number",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Bit",
+                          "1"
+                        ]
+                      },
+                      {
+                        "Variable": [
+                          "Bit",
+                          "2"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "number",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Bit",
+                          "3"
+                        ]
+                      },
+                      {
+                        "Variable": [
+                          "Bit",
+                          "2"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "number",
+          "parameter_types": [
+            "Bit",
+            "Bit"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "0"
+                },
+                {
+                  "Variant": "0"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "zero (even)"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "0"
+                },
+                {
+                  "Variant": "1"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "one (odd)"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "1"
+                },
+                {
+                  "Variant": "0"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "two (even)"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "1"
+                },
+                {
+                  "Variant": "1"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "three (odd)"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

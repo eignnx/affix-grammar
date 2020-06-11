@@ -1,6 +1,0 @@
-#comment to start
-rule start = "blah" foo "bar" #this is a comment pls ignore
-
-# comment on line of its own
-rule foo = "foo"
-#comment at end

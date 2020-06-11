@@ -1,0 +1,35 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Ok": [
+    "er ist Hans und er ist Hans und es ist Jesse.",
+    "er ist Hans und es ist Jesse und er ist Hans.",
+    "es ist Jesse und sie ist Freida und er ist Hans.",
+    "er ist Hans und er ist Hans und er ist Hans.",
+    "sie ist Freida und er ist Hans und sie ist Freida.",
+    "sie ist Freida und es ist Jesse und sie ist Freida.",
+    "er ist Hans und sie ist Freida und er ist Hans.",
+    "sie ist Freida und er ist Hans und es ist Jesse.",
+    "sie ist Freida und sie ist Freida und es ist Jesse.",
+    "er ist Hans und er ist Hans und sie ist Freida.",
+    "sie ist Freida und es ist Jesse und er ist Hans.",
+    "er ist Hans und sie ist Freida und sie ist Freida.",
+    "es ist Jesse und es ist Jesse und sie ist Freida.",
+    "er ist Hans und es ist Jesse und sie ist Freida.",
+    "er ist Hans und sie ist Freida und es ist Jesse.",
+    "es ist Jesse und sie ist Freida und sie ist Freida.",
+    "es ist Jesse und er ist Hans und er ist Hans.",
+    "sie ist Freida und sie ist Freida und er ist Hans.",
+    "sie ist Freida und es ist Jesse und es ist Jesse.",
+    "es ist Jesse und es ist Jesse und er ist Hans.",
+    "es ist Jesse und er ist Hans und sie ist Freida.",
+    "es ist Jesse und es ist Jesse und es ist Jesse.",
+    "es ist Jesse und sie ist Freida und es ist Jesse.",
+    "sie ist Freida und er ist Hans und er ist Hans.",
+    "es ist Jesse und er ist Hans und es ist Jesse.",
+    "sie ist Freida und sie ist Freida und sie ist Freida.",
+    "er ist Hans und es ist Jesse und es ist Jesse."
+  ]
+}

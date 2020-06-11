@@ -1,0 +1,250 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "Gender",
+        "variants": {
+          "neuter": [],
+          "masculine": [],
+          "feminine": []
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "they",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          "1"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "ist"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "name",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          "1"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "und"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "they",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          "2"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "ist"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "name",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          "2"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "und"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "they",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          "3"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "ist"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "name",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          "3"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": "."
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "they",
+          "parameter_types": [
+            "Gender"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "masculine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "er"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "feminine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "sie"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "neuter"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "es"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "name",
+          "parameter_types": [
+            "Gender"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "masculine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "Hans"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "feminine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "Freida"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "neuter"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "Jesse"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

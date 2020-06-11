@@ -1,0 +1,326 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "EnglishGrammaticalGender",
+        "variants": {
+          "nonbinary": [],
+          "masculine": [],
+          "neutral": [],
+          "feminine": []
+        }
+      },
+      {
+        "name": "EnglishGrammaticalPerson",
+        "variants": {
+          "2nd": [],
+          "3rd": [],
+          "1st": []
+        }
+      },
+      {
+        "name": "EnglishGrammaticalNumber",
+        "variants": {
+          "plural": [],
+          "singular": []
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "they",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Number",
+                          ""
+                        ]
+                      },
+                      {
+                        "Variable": [
+                          "Person",
+                          ""
+                        ]
+                      },
+                      {
+                        "Variable": [
+                          "Gender",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "went to the store."
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "they",
+          "parameter_types": [
+            "Number",
+            "Person",
+            "Gender"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "singular"
+                },
+                {
+                  "Variant": "1st"
+                },
+                "Star"
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "I"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "singular"
+                },
+                {
+                  "Variant": "2nd"
+                },
+                "Star"
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "you"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "singular"
+                },
+                {
+                  "Variant": "3rd"
+                },
+                {
+                  "Variant": "neutral"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "it"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "singular"
+                },
+                {
+                  "Variant": "3rd"
+                },
+                {
+                  "Variant": "nonbinary"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "they"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "singular"
+                },
+                {
+                  "Variant": "3rd"
+                },
+                {
+                  "Variant": "feminine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "she"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "singular"
+                },
+                {
+                  "Variant": "3rd"
+                },
+                {
+                  "Variant": "masculine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "he"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "plural"
+                },
+                {
+                  "Variant": "1st"
+                },
+                "Star"
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "we"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "plural"
+                },
+                {
+                  "Variant": "2nd"
+                },
+                {
+                  "Variant": "masculine"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "they",
+                    "vars": [
+                      {
+                        "Variant": "plural"
+                      },
+                      {
+                        "Variant": "2nd"
+                      },
+                      {
+                        "Variant": "neutral"
+                      }
+                    ]
+                  }
+                }
+              ],
+              [
+                {
+                  "StrLit": "you guys"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "plural"
+                },
+                {
+                  "Variant": "2nd"
+                },
+                "Star"
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "you"
+                }
+              ],
+              [
+                {
+                  "StrLit": "y'all"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "plural"
+                },
+                {
+                  "Variant": "3rd"
+                },
+                "Star"
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "they"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

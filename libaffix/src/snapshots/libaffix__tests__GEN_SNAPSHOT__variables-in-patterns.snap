@@ -1,0 +1,12 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Ok": [
+    "they (m) walked to the store.",
+    "it walked to the store.",
+    "they (f) walked to the store.",
+    "they walked to the store."
+  ]
+}

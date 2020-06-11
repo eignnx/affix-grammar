@@ -142,7 +142,7 @@ fn data_decl(i: &str) -> Res<DataDecl> {
 #[test]
 fn parse_data_decl() {
     use internship::IStr;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::iter::FromIterator;
 
     let src = "data Number = singular | plural";
@@ -150,7 +150,7 @@ fn parse_data_decl() {
     assert_eq!(rest, "");
     let decl = DataDecl {
         name: DataName(IStr::new("Number")),
-        variants: HashMap::from_iter(vec![
+        variants: BTreeMap::from_iter(vec![
             (DataVariant(IStr::new("singular")), vec![]),
             (DataVariant(IStr::new("plural")), vec![]),
         ]),

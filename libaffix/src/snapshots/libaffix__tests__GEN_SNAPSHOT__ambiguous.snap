@@ -1,0 +1,13 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Err": {
+    "AmbiguousSymbol": {
+      "symbol": "J1",
+      "possibility1": "Java",
+      "possibility2": "JavaScript"
+    }
+  }
+}

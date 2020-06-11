@@ -1,0 +1,86 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "Character",
+        "variants": {
+          "art": [
+            [
+              {
+                "StrLit": "Art Garfunkel"
+              }
+            ],
+            [
+              {
+                "StrLit": "the musician known only as '"
+              },
+              "Plus",
+              {
+                "DataVariant": "art"
+              },
+              "Plus",
+              {
+                "StrLit": "'"
+              }
+            ]
+          ],
+          "paul": [
+            [
+              {
+                "StrLit": "Paul Simon"
+              }
+            ],
+            [
+              {
+                "StrLit": "Pauli-Plauli-Paul"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "Hello"
+                },
+                {
+                  "DataVariable": [
+                    "Character",
+                    ""
+                  ]
+                },
+                "Plus",
+                {
+                  "StrLit": ". Are you"
+                },
+                {
+                  "DataVariant": "paul"
+                },
+                "Plus",
+                {
+                  "StrLit": "?"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

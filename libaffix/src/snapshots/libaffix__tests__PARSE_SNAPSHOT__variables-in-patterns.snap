@@ -1,0 +1,141 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "GrammaticalGender",
+        "variants": {
+          "nonbinary": [],
+          "masculine": [
+            [
+              {
+                "StrLit": "m"
+              }
+            ]
+          ],
+          "neutral": [],
+          "feminine": [
+            [
+              {
+                "StrLit": "f"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "they",
+                    "vars": [
+                      {
+                        "Variable": [
+                          "Gender",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "StrLit": "walked to the store."
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "they",
+          "parameter_types": [
+            "Gender"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "nb"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "they"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "ntrl"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "it"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variable": [
+                    "Gender",
+                    "1"
+                  ]
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "they"
+                },
+                {
+                  "StrLit": "("
+                },
+                "Plus",
+                {
+                  "DataVariable": [
+                    "Gender",
+                    "1"
+                  ]
+                },
+                "Plus",
+                {
+                  "StrLit": ")"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

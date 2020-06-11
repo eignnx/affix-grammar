@@ -1,0 +1,11 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Err": {
+    "UnboundSymbol": {
+      "symbol": "dawg"
+    }
+  }
+}

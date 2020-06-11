@@ -1,11 +1,11 @@
 use crate::fault::{DynamicErr, DynamicRes};
 use im::Vector;
 use internship::IStr;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// Can appear in a case-analysis in the body of a rule.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Pattern {
     Star,
     Variant(Abbr<DataVariant>),
@@ -13,14 +13,14 @@ pub enum Pattern {
 }
 
 /// The values or variables passed to a rule when it is referenced (called).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Argument {
     Variant(Abbr<DataVariant>),
     Variable(DataVariable),
 }
 
 /// The name of a rule.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RuleName(pub IStr);
 
 impl AsRef<str> for RuleName {
@@ -36,7 +36,7 @@ impl fmt::Display for RuleName {
 }
 
 /// A variable that represents a data variant.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct DataVariable(pub Abbr<IStr>, pub IStr);
 
 impl AsRef<str> for DataVariable {
@@ -54,7 +54,7 @@ impl fmt::Display for DataVariable {
 }
 
 /// The name of a data-type.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DataName(pub IStr);
 
 impl AsRef<str> for DataName {
@@ -74,32 +74,33 @@ impl fmt::Display for DataName {
 ///
 /// ```
 /// # use libaffix::parser::syntax::abbreviates;
-/// assert!(abbreviates("G", "Gender"));
-/// assert!(abbreviates("Gend", "Gender"));
-/// assert!(abbreviates("Gndr", "Gender"));
-/// assert!(abbreviates("Gender", "Gender"));
-/// assert!(!abbreviates("Genderific", "Gender"));
+/// # use libaffix::parser::syntax::Abbr;
+/// assert!(abbreviates(&Abbr::new("G"), "Gender"));
+/// assert!(abbreviates(&Abbr::new("Gend"), "Gender"));
+/// assert!(abbreviates(&Abbr::new("Gndr"), "Gender"));
+/// assert!(abbreviates(&Abbr::new("Gender"), "Gender"));
+/// assert!(!abbreviates(&Abbr::new("Genderific"), "Gender"));
 ///
-/// assert!(!abbreviates("", "Whatever"));
+/// assert!(!abbreviates(&Abbr::new(""), "Whatever"));
 ///
-/// assert!(abbreviates("A", "Argument"));
-/// assert!(abbreviates("Arg", "Argument"));
-/// assert!(abbreviates("Art", "Argument"));
+/// assert!(abbreviates(&Abbr::new("A"), "Argument"));
+/// assert!(abbreviates(&Abbr::new("Arg"), "Argument"));
+/// assert!(abbreviates(&Abbr::new("Art"), "Argument"));
 ///
-/// assert!(abbreviates("A", "Archetype"));
-/// assert!(abbreviates("Arch", "Archetype"));
-/// assert!(abbreviates("Art", "Archetype"));
+/// assert!(abbreviates(&Abbr::new("A"), "Archetype"));
+/// assert!(abbreviates(&Abbr::new("Arch"), "Archetype"));
+/// assert!(abbreviates(&Abbr::new("Art"), "Archetype"));
 ///
-/// assert!(abbreviates("n", "neutral"));
-/// assert!(abbreviates("neut", "neutral"));
-/// assert!(abbreviates("ntrl", "neutral"));
+/// assert!(abbreviates(&Abbr::new("n"), "neutral"));
+/// assert!(abbreviates(&Abbr::new("neut"), "neutral"));
+/// assert!(abbreviates(&Abbr::new("ntrl"), "neutral"));
 ///
-/// assert!(!abbreviates("cow", "horse"));
+/// assert!(!abbreviates(&Abbr::new("cow"), "horse"));
 ///
-/// assert!(abbreviates("Nat", "NaturalNumber"));
-/// assert!(abbreviates("Num", "NaturalNumber"));
-/// assert!(abbreviates("NN", "NaturalNumber"));
-/// assert!(!abbreviates("NNN", "NaturalNumber"));
+/// assert!(abbreviates(&Abbr::new("Nat"), "NaturalNumber"));
+/// assert!(abbreviates(&Abbr::new("Num"), "NaturalNumber"));
+/// assert!(abbreviates(&Abbr::new("NN"), "NaturalNumber"));
+/// assert!(!abbreviates(&Abbr::new("NNN"), "NaturalNumber"));
 /// ```
 pub fn abbreviates(abbr: &Abbr<impl AsRef<str>>, src: impl AsRef<str>) -> bool {
     let Abbr(abbr) = abbr;
@@ -125,7 +126,7 @@ impl DataName {
 }
 
 /// The name of a variant of a data-type.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct DataVariant(pub IStr);
 
 impl AsRef<str> for DataVariant {
@@ -140,7 +141,7 @@ impl fmt::Display for DataVariant {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Abbr<T>(T);
 
 impl<T> Abbr<T> {
@@ -170,20 +171,20 @@ where
 }
 
 /// The "call site" of a rule. Includes variables that should be referenced inside the call.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RuleRef {
     pub rule: Abbr<RuleName>,
     pub vars: Vec<Argument>,
 }
 
 /// The type signature of a rule.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RuleSig {
     pub name: RuleName,
     pub parameter_types: Vec<Abbr<DataName>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Token {
     RuleRef(RuleRef),
     StrLit(IStr),
@@ -194,13 +195,13 @@ pub enum Token {
 
 pub type SententialForm = Vector<Token>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct DataDecl {
     pub name: DataName,
-    pub variants: HashMap<DataVariant, Vec<SententialForm>>,
+    pub variants: BTreeMap<DataVariant, Vec<SententialForm>>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize)]
 pub struct Guard {
     // This field needs to be cheaply copiable because several parsers pass
     // guards around and need to clone them.
@@ -215,19 +216,19 @@ impl Guard {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Case {
     pub guard: Guard,
     pub alternatives: Vec<SententialForm>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct RuleDecl {
     pub signature: RuleSig,
     pub cases: Vec<Case>,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Serialize)]
 pub struct Grammar {
     pub data_decls: Vec<DataDecl>,
     pub rule_decls: Vec<RuleDecl>,

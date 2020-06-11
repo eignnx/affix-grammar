@@ -1,0 +1,16 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Ok": [
+    "three (odd) three (odd)",
+    "zero (even) zero (even)",
+    "zero (even) two (even)",
+    "two (even) two (even)",
+    "two (even) zero (even)",
+    "three (odd) one (odd)",
+    "one (odd) one (odd)",
+    "one (odd) three (odd)"
+  ]
+}

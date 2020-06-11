@@ -1,0 +1,34 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "yo"
+                },
+                {
+                  "DataVariant": "dawg"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
