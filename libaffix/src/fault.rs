@@ -133,12 +133,12 @@ impl DynamicErr {
             .signature
             .parameter_types
             .iter()
-            .map(|typ_name| typ_name.0.as_str());
+            .map(|typ_name| typ_name.clone().abbreviation());
         let arg_names = arguments.iter().map(|evald_arg| evald_arg.0.as_str());
         let bindings = arg_names
             .zip(typ_names)
             .map(|(value, typ)| Binding {
-                typ: typ.into(),
+                typ: typ.to_string(),
                 value: value.into(),
             })
             .collect::<Vec<_>>();

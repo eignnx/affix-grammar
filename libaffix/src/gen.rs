@@ -1,7 +1,7 @@
 use crate::fault::{DynamicErr, DynamicRes};
 use crate::parser::syntax::{
-    abbreviates, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard,
-    Pattern, RuleName, RuleRef, Token,
+    abbreviates, Abbr, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar,
+    Guard, Pattern, RuleDecl, RuleName, RuleRef, Token,
 };
 use im::{vector, Vector};
 use internship::IStr;
@@ -65,26 +65,19 @@ impl Generator {
         }
     }
 
-    fn choose_rule<'gen, 'st>(
+    fn choose_case<'gen, 'st>(
         &'gen self,
-        rule_name: &RuleName,
+        rule_decl: &RuleDecl,
         arguments: &Vec<DataVariant>,
         state: &'st mut State,
     ) -> DynamicRes<Case> {
-        // Collect all rules that *could* expand `token`.
-        let rule = self
-            .grammar
-            .rule_decls
-            .iter()
-            .filter(|rule_decl| &rule_decl.signature.name == rule_name)
-            .next() // TODO: Should this *only* return the first-found rule decl?
-            .ok_or_else(|| DynamicErr::unbound_rule_name(rule_name.as_ref()))?;
-
         // Check each case one after another until an allowable case is found.
-        for case in &rule.cases {
-            let param_typs = &rule.signature.parameter_types;
+        for case in &rule_decl.cases {
+            let param_typs = &rule_decl.signature.parameter_types;
             let reqs = &case.guard;
-            if let Some(new_state) = self.allowable(rule_name, &param_typs, reqs, arguments)? {
+            if let Some(new_state) =
+                self.allowable(&rule_decl.signature.name, &param_typs, reqs, arguments)?
+            {
                 state.extend(
                     new_state
                         .iter()
@@ -97,7 +90,7 @@ impl Generator {
         // We are out of possibilities. This case must not have been handled in the case analysis.
         Err(DynamicErr::inexhaustive_case_analysis(
             &self.grammar.rule_decls,
-            rule_name,
+            &rule_decl.signature.name,
             arguments,
         ))
     }
@@ -105,7 +98,7 @@ impl Generator {
     fn allowable<'st>(
         &self,
         rule_name: &RuleName,
-        _types: &Vec<DataName>,
+        _types: &Vec<Abbr<DataName>>,
         guard: &Guard,
         arguments: &Vec<DataVariant>,
     ) -> DynamicRes<Option<State>> {
@@ -130,23 +123,32 @@ impl Generator {
                 Pattern::Variant(patt_variant) => {
                     // This assumes that `arg` is the non-abbreviated form of a
                     // `DataVariant`.
-                    if !abbreviates(patt_variant.as_ref(), arg.as_ref()) {
+                    if !abbreviates(patt_variant, arg) {
                         return Ok(None);
                     }
                 }
                 Pattern::Variable(var) => {
+                    // Lookup the `DataDecl` that the variable refers to.
                     let variable_decl = self.grammar.data_decl_from_abbr_variable(var)?;
+
+                    // If that `DataDecl` doesn't contain the arg, there's a problem.
                     if !variable_decl.variants.contains_key(arg) {
-                        let pattern_type = variable_decl.name.to_string();
+                        // `arg` might be an abbreviation since it's not EXACTLY listed in the
+                        // `DataDecl`'s variants map.
+                        let arg = Abbr::new(arg.clone());
+
+                        // Look up the `DataDecl` that DOES contain `arg`.
                         let (variant_decl, _variant) =
-                            self.grammar.data_decl_from_abbr_variant(arg)?;
-                        let argument_type = variant_decl.name.to_string();
+                            self.grammar.data_decl_from_abbr_variant(&arg)?;
+
                         return Err(DynamicErr::PatternMatchTypeError {
-                            pattern_type,
-                            argument_type,
+                            pattern_type: variable_decl.name.to_string(),
+                            argument_type: variant_decl.name.to_string(),
                             pattern_variable: var.to_string(),
                         });
                     }
+
+                    // Set the value of `var` to `arg` in the soon-to-be-updated state.
                     let overwritten = state.insert(var.clone(), arg.clone());
                     if overwritten.is_some() {
                         panic!("Shouldn't be overwriting variable bindings here.");
@@ -233,7 +235,7 @@ impl Generator {
 
     fn generate_non_unique_from_start<'gen>(
         &'gen self,
-        start: RuleName,
+        start: Abbr<RuleName>,
         state: &mut State,
     ) -> DynamicRes<Vector<OutToken>> {
         let start_call = Token::RuleRef(RuleRef {
@@ -287,7 +289,9 @@ impl Generator {
 
                     // Search the grammar's rules via `self.choose_rule`.
                     // If no rule cases are viable, panic.
-                    let case = self.choose_rule(rule, &arguments, state)?;
+                    let (rule_decl, rule_name) =
+                        self.grammar.rule_decl_from_abbr_rule_name(rule)?;
+                    let case = self.choose_case(rule_decl, &arguments, state)?;
                     let next_sentence = case
                         .alternatives
                         .iter()
@@ -334,7 +338,7 @@ impl Generator {
     where
         'buf: 'gen,
     {
-        let start = RuleName(IStr::new("start"));
+        let start = Abbr::new(RuleName(IStr::new("start")));
         let mut trials = 0;
         loop {
             let mut state = State::new();

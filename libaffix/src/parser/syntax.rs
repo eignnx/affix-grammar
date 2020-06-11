@@ -8,14 +8,14 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Pattern {
     Star,
-    Variant(DataVariant),
+    Variant(Abbr<DataVariant>),
     Variable(DataVariable),
 }
 
 /// The values or variables passed to a rule when it is referenced (called).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Argument {
-    Variant(DataVariant),
+    Variant(Abbr<DataVariant>),
     Variable(DataVariable),
 }
 
@@ -25,7 +25,7 @@ pub struct RuleName(pub IStr);
 
 impl AsRef<str> for RuleName {
     fn as_ref(&self) -> &str {
-        self.0.as_str()
+        self.0.as_ref()
     }
 }
 
@@ -37,17 +37,18 @@ impl fmt::Display for RuleName {
 
 /// A variable that represents a data variant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DataVariable(pub IStr, pub IStr);
+pub struct DataVariable(pub Abbr<IStr>, pub IStr);
 
 impl AsRef<str> for DataVariable {
     fn as_ref(&self) -> &str {
-        self.0.as_str()
+        let Self(Abbr(name), _number) = self;
+        name.as_ref()
     }
 }
 
 impl fmt::Display for DataVariable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let DataVariable(name, number) = self;
+        let Self(Abbr(name), number) = self;
         write!(f, "{}{}", name, number)
     }
 }
@@ -58,7 +59,7 @@ pub struct DataName(pub IStr);
 
 impl AsRef<str> for DataName {
     fn as_ref(&self) -> &str {
-        self.0.as_str()
+        self.0.as_ref()
     }
 }
 
@@ -100,11 +101,13 @@ impl fmt::Display for DataName {
 /// assert!(abbreviates("NN", "NaturalNumber"));
 /// assert!(!abbreviates("NNN", "NaturalNumber"));
 /// ```
-pub fn abbreviates(mut abbr: &str, src: &str) -> bool {
+pub fn abbreviates(abbr: &Abbr<impl AsRef<str>>, src: impl AsRef<str>) -> bool {
+    let Abbr(abbr) = abbr;
+    let mut abbr = abbr.as_ref();
     if abbr.is_empty() {
         return false;
     }
-    for ch in src.chars() {
+    for ch in src.as_ref().chars() {
         if abbr.starts_with(ch) {
             abbr = &abbr[1..];
         }
@@ -127,7 +130,7 @@ pub struct DataVariant(pub IStr);
 
 impl AsRef<str> for DataVariant {
     fn as_ref(&self) -> &str {
-        self.0.as_str()
+        self.0.as_ref()
     }
 }
 
@@ -137,10 +140,39 @@ impl fmt::Display for DataVariant {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Abbr<T>(T);
+
+impl<T> Abbr<T> {
+    pub fn new(x: T) -> Self {
+        Abbr(x)
+    }
+
+    pub fn abbreviation(self) -> T {
+        let Self(x) = self;
+        x
+    }
+
+    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> Abbr<U> {
+        let Self(x) = self;
+        Abbr(f(x))
+    }
+}
+
+impl<T> fmt::Display for Abbr<T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Abbr(x) = self;
+        x.fmt(f)
+    }
+}
+
 /// The "call site" of a rule. Includes variables that should be referenced inside the call.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleRef {
-    pub rule: RuleName,
+    pub rule: Abbr<RuleName>,
     pub vars: Vec<Argument>,
 }
 
@@ -148,7 +180,7 @@ pub struct RuleRef {
 #[derive(Debug, Clone, PartialEq)]
 pub struct RuleSig {
     pub name: RuleName,
-    pub parameter_types: Vec<DataName>,
+    pub parameter_types: Vec<Abbr<DataName>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -236,10 +268,8 @@ impl Grammar {
 
     pub fn data_decl_from_abbr_variant<'grammar>(
         &'grammar self,
-        variant: &DataVariant,
+        variant: &Abbr<DataVariant>,
     ) -> DynamicRes<(&'grammar DataDecl, &'grammar DataVariant)> {
-        let variant_name = variant.as_ref();
-
         // Search through all data declarations for variants that `val` is
         // an abbreviation of. Collect all those variants.
         // TODO: use the "type signature" of the rule to narrow this search.
@@ -248,7 +278,7 @@ impl Grammar {
                 .iter()
                 .filter_map(move |(other_variant, _reprs)| {
                     let DataVariant(other_name) = other_variant;
-                    if abbreviates(variant_name, other_name.as_str()) {
+                    if abbreviates(variant, other_name) {
                         Some((decl, other_variant))
                     } else {
                         None
@@ -261,7 +291,7 @@ impl Grammar {
         let first = canonicalizations
             .next()
             .ok_or_else(|| DynamicErr::UnboundSymbol {
-                symbol: variant_name.to_string(),
+                symbol: variant.to_string(),
             })?;
 
         // If there's more than one possibility, that's an ambiguity.
@@ -269,12 +299,41 @@ impl Grammar {
             let (decl1, DataVariant(possibility1)) = first;
             let (decl2, DataVariant(possibility2)) = second;
             return Err(DynamicErr::AmbiguousSymbol {
-                symbol: variant_name.to_string(),
+                symbol: variant.to_string(),
                 possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
                 possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
             });
         }
 
         Ok(first)
+    }
+
+    pub fn rule_decl_from_abbr_rule_name<'grammar>(
+        &'grammar self,
+        abbr_name: &Abbr<RuleName>,
+    ) -> DynamicRes<(&'grammar RuleDecl, &'grammar RuleName)> {
+        let mut possibilities = self
+            .rule_decls
+            .iter()
+            .filter(|decl| abbreviates(abbr_name, &decl.signature.name));
+
+        let first = possibilities
+            .next()
+            .ok_or_else(|| DynamicErr::UnboundRuleName {
+                rule_name: abbr_name.to_string(),
+            })?;
+
+        if let Some(second) = possibilities.next() {
+            let possibility1 = first.signature.name.to_string();
+            let possibility2 = second.signature.name.to_string();
+            return Err(DynamicErr::AmbiguousSymbol {
+                symbol: abbr_name.to_string(),
+                possibility1,
+                possibility2,
+            });
+        }
+
+        let rule_decl = first;
+        Ok((rule_decl, &rule_decl.signature.name))
     }
 }

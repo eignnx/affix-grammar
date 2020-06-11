@@ -19,7 +19,7 @@ use nom::{
 
 use crate::fault::StaticErr;
 use syntax::{
-    Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
+    Abbr, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
     RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
 use typo::{Report, SourcedTypo, Typo};
@@ -57,19 +57,25 @@ fn upper_ident(i: &str) -> Res<IStr> {
 fn variable(i: &str) -> Res<DataVariable> {
     let (i, name) = upper_ident(i)?;
     let (i, number) = take_while(char::is_numeric)(i)?;
-    Ok((i, DataVariable(name, number.into())))
+    Ok((i, DataVariable(Abbr::new(name), number.into())))
 }
 
 #[test]
 fn parse_variable() {
     let (_rest, actual) = variable("Gender123").unwrap();
-    assert_eq!(actual, DataVariable("Gender".into(), "123".into()));
+    assert_eq!(
+        actual,
+        DataVariable(Abbr::new("Gender".into()), "123".into())
+    );
 
     let (_rest, actual) = variable("Gender①②③").unwrap();
-    assert_eq!(actual, DataVariable("Gender".into(), "①②③".into()));
+    assert_eq!(
+        actual,
+        DataVariable(Abbr::new("Gender".into()), "①②③".into())
+    );
 
     let (_rest, actual) = variable("Gender").unwrap();
-    assert_eq!(actual, DataVariable("Gender".into(), "".into()));
+    assert_eq!(actual, DataVariable(Abbr::new("Gender".into()), "".into()));
 }
 
 fn quoted(i: &str) -> Res<IStr> {
@@ -157,7 +163,9 @@ fn parse_data_decl() {
 fn argument(i: &str) -> Res<Argument> {
     alt((
         map(variable, Argument::Variable),
-        map(lower_ident, |ident| Argument::Variant(DataVariant(ident))),
+        map(lower_ident, |ident| {
+            Argument::Variant(Abbr::new(DataVariant(ident)))
+        }),
         failure_case(char('*'), |_| {
             Typo::Custom(
                 "USE OF '*' IN ARGUMENT POSITION",
@@ -177,7 +185,7 @@ fn rule_ref(i: &str) -> Res<RuleRef> {
     let (i, name) = lower_ident(i)?;
     let (i, vars) = many0(preceded(char('.'), argument))(i)?;
     let reference = RuleRef {
-        rule: RuleName(name),
+        rule: Abbr::new(RuleName(name)),
         vars,
     };
     Ok((i, reference))
@@ -247,7 +255,10 @@ fn rule_sig(i: &str) -> Res<RuleSig> {
         "a rule signature",
         tuple((
             lower_ident,
-            many0(preceded(char('.'), map(upper_ident, DataName))),
+            many0(preceded(
+                char('.'),
+                map(upper_ident, |ident| Abbr::new(DataName(ident))),
+            )),
         )),
     )(i)?;
 
@@ -266,7 +277,9 @@ fn pattern(i: &str) -> Res<Pattern> {
         "a pattern",
         alt((
             map(char('*'), |_| Pattern::Star),
-            map(lower_ident, |ident| Pattern::Variant(DataVariant(ident))),
+            map(lower_ident, |ident| {
+                Pattern::Variant(Abbr::new(DataVariant(ident)))
+            }),
             map(variable, Pattern::Variable),
         )),
     )(i)
@@ -575,7 +588,7 @@ rule want.Number.Person =
     let make_guard = |v: &[&str]| Guard {
         requirements: v
             .into_iter()
-            .map(|s| Pattern::Variant(DataVariant(IStr::new(s))))
+            .map(|s| Pattern::Variant(Abbr::new(DataVariant(IStr::new(s)))))
             .collect(),
     };
     let sentence = |s: &str| vector![Token::StrLit(IStr::new(s))];
@@ -610,10 +623,10 @@ rule want.Number.Person =
                     alternatives: vec![vector![
                         Token::StrLit(IStr::new("I")),
                         Token::RuleRef(RuleRef {
-                            rule: RuleName(IStr::new("want")),
+                            rule: Abbr::new(RuleName(IStr::new("want"))),
                             vars: vec![
-                                Argument::Variant(DataVariant(IStr::new("singular"))),
-                                Argument::Variant(DataVariant(IStr::new("1st")))
+                                Argument::Variant(Abbr::new(DataVariant(IStr::new("singular")))),
+                                Argument::Variant(Abbr::new(DataVariant(IStr::new("1st"))))
                             ]
                         }),
                         Token::StrLit(IStr::new("YOU!"))
@@ -624,8 +637,8 @@ rule want.Number.Person =
                 signature: RuleSig {
                     name: RuleName(IStr::new("want")),
                     parameter_types: vec![
-                        DataName(IStr::new("Number")),
-                        DataName(IStr::new("Person")),
+                        Abbr::new(DataName(IStr::new("Number"))),
+                        Abbr::new(DataName(IStr::new("Person"))),
                     ],
                 },
                 cases: vec![
