@@ -133,4 +133,4 @@ Use the CLI tool to generate sentences. Ensure you have [`cargo`](https://doc.ru
 $ cargo run -- path/to/grammar-file -i
 ```
 
-See the [`test_grammars`](https://github.com/eignnx/affix-grammar/tree/master/test_grammars) directory for example grammar files (though many are not written with current syntax).
+See the [`libaffix/src/snapshot_inputs`](https://github.com/eignnx/affix-grammar/tree/master/libaffix/src/snapshot_inputs) directory for example grammar files (though note that some are intended to fail).
