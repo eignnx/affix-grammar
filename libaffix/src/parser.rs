@@ -3,8 +3,6 @@ pub mod syntax;
 pub mod typo;
 
 use im::Vector;
-use std::convert::TryFrom;
-// use macro_rules_attribute::macro_rules_attribute;
 use internship::IStr;
 use nom::{
     branch::alt,
@@ -16,6 +14,7 @@ use nom::{
     sequence::{delimited, preceded, tuple},
     IResult,
 };
+use std::convert::TryFrom;
 
 use crate::fault::StaticErr;
 use syntax::{
