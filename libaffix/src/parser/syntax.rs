@@ -137,6 +137,15 @@ impl fmt::Display for DataName {
     }
 }
 
+impl DataName {
+    /// Performs an equality check with a `DataVariable` since a `DataVariable`
+    /// can be abbreviated.
+    pub fn matches_variable(&self, DataVariable(var_name, _number): &DataVariable) -> bool {
+        let DataName(data_name) = self;
+        abbreviates(var_name, data_name)
+    }
+}
+
 /// A predicate function that determines if one word (`abbr`) abbreviates the
 /// other (`src`). See doctests for examples.
 ///
@@ -182,15 +191,6 @@ pub fn abbreviates(abbr: &Abbr<impl AsRef<str>>, src: impl AsRef<str>) -> bool {
         }
     }
     abbr.is_empty()
-}
-
-impl DataName {
-    /// Performs an equality check with a `DataVariable` since a `DataVariable`
-    /// can be abbreviated.
-    pub fn matches_variable(&self, DataVariable(var_name, _number): &DataVariable) -> bool {
-        let DataName(data_name) = self;
-        abbreviates(var_name, data_name)
-    }
 }
 
 /// The name of a variant of a data-type.
