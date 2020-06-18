@@ -305,7 +305,7 @@ where
 
                     // Search the grammar's rules via `self.choose_rule`.
                     // If no rule cases are viable, panic.
-                    let (rule_decl, rule_name) =
+                    let (rule_decl, _rule_name) =
                         self.grammar.rule_decl_from_abbr_rule_name(rule)?;
                     let case = self.choose_case(rule_decl, &arguments, state)?;
                     let next_sentence = case

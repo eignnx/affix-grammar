@@ -56,7 +56,7 @@ fn upper_ident(i: &str) -> Res<IStr> {
 fn variable(i: &str) -> Res<DataVariable> {
     let (i, name) = upper_ident(i)?;
     let (i, number) = take_while(char::is_numeric)(i)?;
-    Ok((i, DataVariable(Abbr::new(name), number.into())))
+    Ok((i, DataVariable(Abbr::new(DataName(name)), number.into())))
 }
 
 #[test]
@@ -64,17 +64,20 @@ fn parse_variable() {
     let (_rest, actual) = variable("Gender123").unwrap();
     assert_eq!(
         actual,
-        DataVariable(Abbr::new("Gender".into()), "123".into())
+        DataVariable(Abbr::new(DataName("Gender".into())), "123".into())
     );
 
     let (_rest, actual) = variable("Gender①②③").unwrap();
     assert_eq!(
         actual,
-        DataVariable(Abbr::new("Gender".into()), "①②③".into())
+        DataVariable(Abbr::new(DataName("Gender".into())), "①②③".into())
     );
 
     let (_rest, actual) = variable("Gender").unwrap();
-    assert_eq!(actual, DataVariable(Abbr::new("Gender".into()), "".into()));
+    assert_eq!(
+        actual,
+        DataVariable(Abbr::new(DataName("Gender".into())), "".into())
+    );
 }
 
 fn quoted(i: &str) -> Res<IStr> {
