@@ -1,6 +1,6 @@
 use crate::fault::{DynamicErr, DynamicRes};
 use crate::parser::syntax::{
-    abbreviates, Abbr, Argument, Case, DataName, DataVariable, DataVariant, Grammar, Guard,
+    abbreviates, Abbr, Argument, Case, DataName, DataVariable, DataVariant, Guard, ParsedGrammar,
     Pattern, RuleDecl, RuleName, RuleRef, Token,
 };
 use im::{vector, Vector};
@@ -49,14 +49,14 @@ impl From<&IStr> for OutToken {
 const DEFAULT_MAX_TRIALS: usize = 1000;
 
 pub struct Generator<Rand: rand::Rng = rand::rngs::ThreadRng> {
-    grammar: Grammar,
+    grammar: ParsedGrammar,
     rng: RefCell<Rand>,
     seen_sentences: HashSet<im::Vector<OutToken>>,
     pub max_trials: usize,
 }
 
 impl Generator<rand::rngs::StdRng> {
-    pub fn new_seeded(grammar: Grammar, seed: u64) -> Self {
+    pub fn new_seeded(grammar: ParsedGrammar, seed: u64) -> Self {
         Self {
             grammar,
             rng: RefCell::new(rand::SeedableRng::seed_from_u64(seed)),
@@ -67,7 +67,7 @@ impl Generator<rand::rngs::StdRng> {
 }
 
 impl Generator {
-    pub fn new(grammar: Grammar) -> Self {
+    pub fn new(grammar: ParsedGrammar) -> Self {
         Self {
             grammar,
             rng: RefCell::new(rand::thread_rng()),

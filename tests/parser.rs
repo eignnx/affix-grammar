@@ -1,8 +1,8 @@
-use libaffix::parser::syntax::Grammar;
+use libaffix::parser::syntax::ParsedGrammar;
 use std::convert::TryFrom;
 
-fn parse_src(src: &str) -> Grammar {
-    Grammar::try_from(src).unwrap_or_else(|err| panic!("{}", err))
+fn parse_src(src: &str) -> ParsedGrammar {
+    ParsedGrammar::try_from(src).unwrap_or_else(|err| panic!("{}", err))
 }
 
 #[test]

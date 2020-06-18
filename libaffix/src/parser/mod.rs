@@ -19,8 +19,8 @@ use nom::{
 
 use crate::fault::StaticErr;
 use syntax::{
-    Abbr, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Grammar, Guard, Pattern,
-    RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
+    Abbr, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Guard, ParsedGrammar,
+    Pattern, RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
 };
 use typo::{Report, SourcedTypo, Typo};
 
@@ -467,7 +467,7 @@ where
 /// let res = parse("data Foo = bar | baz");
 /// assert!(res.is_ok());
 /// ```
-pub fn parse(i: &str) -> Res<Grammar> {
+pub fn parse(i: &str) -> Res<ParsedGrammar> {
     enum Decl {
         Data(DataDecl),
         Rule(RuleDecl),
@@ -530,7 +530,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
         )),
     )))(i)?;
 
-    let mut grammar = Grammar::default();
+    let mut grammar = ParsedGrammar::default();
 
     for decl in decls {
         match decl {
@@ -544,7 +544,7 @@ pub fn parse(i: &str) -> Res<Grammar> {
 
 /// You must keep the src string alive until after the function terminates so
 /// that errors that reference either of them can be propagated up.
-impl<'src> TryFrom<&'src str> for Grammar {
+impl<'src> TryFrom<&'src str> for ParsedGrammar {
     type Error = StaticErr<'src>;
     fn try_from(src: &'src str) -> Result<Self, Self::Error> {
         use nom::Err::{Error, Failure, Incomplete};
@@ -583,7 +583,7 @@ rule want.Number.Person =
     }
     --comment at veeerry end"#;
 
-    let actual: Grammar = src.try_into().unwrap();
+    let actual: ParsedGrammar = src.try_into().unwrap();
 
     let make_guard = |v: &[&str]| Guard {
         requirements: v
@@ -593,7 +593,7 @@ rule want.Number.Person =
     };
     let sentence = |s: &str| vector![Token::StrLit(IStr::new(s))];
 
-    let expected = Grammar {
+    let expected = ParsedGrammar {
         data_decls: vec![
             DataDecl {
                 name: DataName(IStr::new("Number")),

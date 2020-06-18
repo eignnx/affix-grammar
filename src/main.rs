@@ -1,5 +1,5 @@
 mod cli;
-use libaffix::{fault::DynamicErr, gen::Generator, parser::syntax::Grammar};
+use libaffix::{fault::DynamicErr, gen::Generator, parser::syntax::ParsedGrammar};
 use std::convert::TryFrom;
 use std::fs;
 use std::io::{self, Write};
@@ -21,7 +21,7 @@ fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&
 fn main() -> io::Result<()> {
     let cli_options = cli::Options::from_args();
     let src = fs::read_to_string(&cli_options.grammar_file)?;
-    let grammar = Grammar::try_from(&src[..]).unwrap_or_else(|err| exit_with_error(err));
+    let grammar = ParsedGrammar::try_from(&src[..]).unwrap_or_else(|err| exit_with_error(err));
 
     let mut generator = Generator::new(grammar);
 

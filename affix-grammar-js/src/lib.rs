@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate serde_derive;
 
-use libaffix::{gen::Generator, literate, parser::syntax::Grammar};
+use libaffix::{gen::Generator, literate, parser::syntax::ParsedGrammar};
 use std::convert::TryFrom;
 use wasm_bindgen::prelude::*;
 
@@ -20,7 +20,7 @@ pub struct ParserContext {
 impl ParserContext {
     #[wasm_bindgen(constructor)]
     pub fn new(src: &str) -> Result<ParserContext, JsValue> {
-        let grammar = Grammar::try_from(src)?;
+        let grammar = ParsedGrammar::try_from(src)?;
         let generator = Generator::new(grammar);
         Ok(ParserContext { generator })
     }

@@ -26,7 +26,7 @@ mod tests {
         for dir_entry in fs::read_dir(inputs).unwrap() {
             let path = dir_entry.unwrap().path();
             let src_text = fs::read_to_string(&path).unwrap();
-            let parse_res = parser::syntax::Grammar::try_from(&src_text[..]);
+            let parse_res = parser::syntax::ParsedGrammar::try_from(&src_text[..]);
 
             let parse_snapshot_name = format!(
                 "PARSE_SNAPSHOT__{}",

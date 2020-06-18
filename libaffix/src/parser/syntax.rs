@@ -229,12 +229,12 @@ pub struct RuleDecl {
 }
 
 #[derive(Debug, Default, PartialEq, Serialize)]
-pub struct Grammar {
+pub struct ParsedGrammar {
     pub data_decls: Vec<DataDecl>,
     pub rule_decls: Vec<RuleDecl>,
 }
 
-impl Grammar {
+impl ParsedGrammar {
     /// Given a `DataVariable`, this function will perform a lookup in the
     /// grammar and return the `DataDecl` that the variable refers to. Fails if
     /// no `DataDecl` matches the variable, or if the variable is ambiguous and
