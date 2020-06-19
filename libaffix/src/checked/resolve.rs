@@ -49,32 +49,23 @@ fn validate_data_decls(
     parsed_grammar: &ParsedGrammar,
     rule_sigs: &SignatureMap,
 ) -> fault::DynamicRes<()> {
-    parsed_grammar.data_decls.iter().try_for_each(|data_decl| {
-        let mut variants: HashMap<DataVariant, Vec<SententialForm>> = HashMap::new();
-        for (variant, stringifications) in &data_decl.variants {
-            let mut new_stringifications = Vec::new();
-            for stringification in stringifications {
-                let mut new_stringification = Vector::new();
-                for parsed_token in stringification {
-                    let token = (parsed_token, parsed_grammar, rule_sigs).try_into()?;
-                    new_stringification.push_back(token);
-                }
-                new_stringifications.push(new_stringification);
+    parsed_grammar
+        .data_decls
+        .iter()
+        .try_for_each(|parsed_data_decl| {
+            let new_data_decl = (parsed_data_decl, rule_sigs, parsed_grammar).try_into()?;
+
+            if let Some(_overwritten) = new_grammar
+                .data_decls
+                .insert(parsed_data_decl.name.clone(), new_data_decl)
+            {
+                return Err(fault::DynamicErr::DuplicateDeclaration {
+                    decl_name: parsed_data_decl.name.to_string(),
+                });
             }
-            variants.insert(variant.clone(), new_stringifications);
-        }
 
-        if let Some(_overwritten) = new_grammar
-            .data_decls
-            .insert(data_decl.name.clone(), DataDecl { variants })
-        {
-            return Err(fault::DynamicErr::DuplicateDeclaration {
-                decl_name: data_decl.name.to_string(),
-            });
-        }
-
-        Ok(())
-    })?;
+            Ok(())
+        })?;
 
     Ok(())
 }
@@ -109,6 +100,34 @@ fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::DynamicRe
 
 pub struct DataDecl {
     pub variants: HashMap<DataVariant, Vec<SententialForm>>,
+}
+
+impl TryFrom<(&syntax::DataDecl, &SignatureMap, &ParsedGrammar)> for DataDecl {
+    type Error = fault::DynamicErr;
+
+    fn try_from(
+        (parsed_data_decl, rule_sigs, parsed_grammar): (
+            &syntax::DataDecl,
+            &SignatureMap,
+            &ParsedGrammar,
+        ),
+    ) -> Result<Self, Self::Error> {
+        let mut variants: HashMap<DataVariant, Vec<SententialForm>> = HashMap::new();
+        for (variant, stringifications) in &parsed_data_decl.variants {
+            let mut new_stringifications = Vec::new();
+            for stringification in stringifications {
+                let mut new_stringification = Vector::new();
+                for parsed_token in stringification {
+                    let token = (parsed_token, parsed_grammar, rule_sigs).try_into()?;
+                    new_stringification.push_back(token);
+                }
+                new_stringifications.push(new_stringification);
+            }
+            variants.insert(variant.clone(), new_stringifications);
+        }
+
+        Ok(DataDecl { variants })
+    }
 }
 
 pub type SententialForm = Vector<Token>;
