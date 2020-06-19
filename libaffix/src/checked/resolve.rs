@@ -3,7 +3,6 @@
 
 use crate::fault;
 use crate::parser::syntax::{self, Abbr, DataName, DataVariant, ParsedGrammar, RuleName};
-use im::Vector;
 use internship::IStr;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
@@ -112,25 +111,43 @@ impl TryFrom<(&syntax::DataDecl, &SignatureMap, &ParsedGrammar)> for DataDecl {
             &ParsedGrammar,
         ),
     ) -> Result<Self, Self::Error> {
-        let mut variants: HashMap<DataVariant, Vec<SententialForm>> = HashMap::new();
-        for (variant, stringifications) in &parsed_data_decl.variants {
-            let mut new_stringifications = Vec::new();
-            for stringification in stringifications {
-                let mut new_stringification = Vector::new();
-                for parsed_token in stringification {
-                    let token = (parsed_token, parsed_grammar, rule_sigs).try_into()?;
-                    new_stringification.push_back(token);
-                }
-                new_stringifications.push(new_stringification);
-            }
-            variants.insert(variant.clone(), new_stringifications);
-        }
+        let variants = parsed_data_decl
+            .variants
+            .iter()
+            .map(|(variant, stringifications)| {
+                let new_stringifications = stringifications
+                    .iter()
+                    .map(|stringification| (stringification, rule_sigs, parsed_grammar).try_into())
+                    .collect::<fault::DynamicRes<_>>()?;
+
+                Ok((variant.clone(), new_stringifications))
+            })
+            .collect::<fault::DynamicRes<_>>()?;
 
         Ok(DataDecl { variants })
     }
 }
 
-pub type SententialForm = Vector<Token>;
+pub struct SententialForm(Vec<Token>);
+
+impl TryFrom<(&syntax::SententialForm, &SignatureMap, &ParsedGrammar)> for SententialForm {
+    type Error = fault::DynamicErr;
+
+    fn try_from(
+        (parsed_sentential_form, rule_sigs, parsed_grammar): (
+            &syntax::SententialForm,
+            &SignatureMap,
+            &ParsedGrammar,
+        ),
+    ) -> Result<Self, Self::Error> {
+        let tokens = parsed_sentential_form
+            .iter()
+            .map(|parsed_token| (parsed_token, parsed_grammar, rule_sigs).try_into())
+            .collect::<fault::DynamicRes<_>>()?;
+
+        Ok(SententialForm(tokens))
+    }
+}
 
 #[derive(Clone)]
 pub enum Token {
@@ -203,14 +220,9 @@ impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
         // Next, verify that the `Argument`s being passed in are of the correct
         // arity.
         if sig.len() != parsed_rule_ref.args.len() {
-            let arguments = parsed_rule_ref
-                .args
-                .iter()
-                .map(|arg| arg.to_string())
-                .collect();
             return Err(fault::DynamicErr::WrongArityRuleReference {
                 rule_name: rule_name.to_string(),
-                arguments,
+                call_site: parsed_rule_ref.to_string(),
                 expected_len: sig.len(),
             });
         }
@@ -266,16 +278,14 @@ impl
             syntax::Argument::Variant(abbr_variant) => {
                 match expected_data_decl.lookup_variant(abbr_variant) {
                     Ok(data_variant) => Ok(Argument::Variant(data_variant.clone())),
-                    Err(None) => Err(fault::DynamicErr::UnknownDataVariantInRuleRef {
-                        abbr_variant: abbr_variant.to_string(),
-                        data_type_name: param_type.to_string(),
-                        rule_ref: parsed_rule_ref.rule.to_string(),
-                    }),
-                    Err(Some((variant1, variant2))) => Err(fault::DynamicErr::AmbiguousSymbol {
-                        symbol: abbr_variant.to_string(),
-                        possibility1: variant1.to_string(),
-                        possibility2: variant2.to_string(),
-                    }),
+                    Err(fault::DynamicErr::UnboundSymbol { symbol }) => {
+                        Err(fault::DynamicErr::UnknownDataVariantInRuleRef {
+                            abbr_variant: symbol,
+                            data_type_name: param_type.to_string(),
+                            rule_ref: parsed_rule_ref.rule.to_string(),
+                        })
+                    }
+                    Err(e) => Err(e),
                 }
             }
 
@@ -320,13 +330,150 @@ pub struct RuleDecl {
     pub cases: Vec<Case>,
 }
 
+impl
+    TryFrom<(
+        &syntax::RuleDecl,
+        &RuleName,
+        &RuleSig,
+        &SignatureMap,
+        &ParsedGrammar,
+    )> for RuleDecl
+{
+    type Error = fault::DynamicErr;
+
+    fn try_from(
+        (parsed_rule_decl, rule_name, rule_sig, rule_sigs, parsed_grammar): (
+            &syntax::RuleDecl,
+            &RuleName,
+            &RuleSig,
+            &SignatureMap,
+            &ParsedGrammar,
+        ),
+    ) -> Result<Self, Self::Error> {
+        // To translate a `RuleDecl`, just translate each of its `Case`s.
+        let cases = parsed_rule_decl
+            .cases
+            .iter()
+            .map(|case| (case, rule_name, rule_sig, rule_sigs, parsed_grammar).try_into())
+            .collect::<fault::DynamicRes<_>>()?;
+
+        Ok(RuleDecl { cases })
+    }
+}
+
 pub struct Case {
     pub requirements: Vec<Pattern>,
     pub alternatives: Vec<SententialForm>,
+}
+
+impl
+    TryFrom<(
+        &syntax::Case,
+        &RuleName,
+        &RuleSig,
+        &SignatureMap,
+        &ParsedGrammar,
+    )> for Case
+{
+    type Error = fault::DynamicErr;
+
+    fn try_from(
+        (parsed_case, rule_name, rule_sig, rule_sigs, parsed_grammar): (
+            &syntax::Case,
+            &RuleName,
+            &RuleSig,
+            &SignatureMap,
+            &ParsedGrammar,
+        ),
+    ) -> Result<Self, Self::Error> {
+        // Check that the requirements have correct arity.
+        if parsed_case.guard.requirements.len() != rule_sig.len() {
+            return Err(fault::DynamicErr::WrongArityCaseGuard {
+                rule_name: rule_name.to_string(),
+                guard: parsed_case.guard.to_string(),
+                expected_len: rule_sig.len(),
+            });
+        }
+
+        // Check that the requirements have correct types.
+        let requirements = parsed_case
+            .guard
+            .requirements
+            .iter()
+            .zip(rule_sig)
+            .map(|(parsed_pattern, expected_type)| {
+                (parsed_pattern, rule_name, expected_type, parsed_grammar).try_into()
+            })
+            .collect::<fault::DynamicRes<_>>()?;
+
+        // Translate the sentential-form alternatives.
+        let alternatives = parsed_case
+            .alternatives
+            .iter()
+            .map(|alternative| (alternative, rule_sigs, parsed_grammar).try_into())
+            .collect::<fault::DynamicRes<_>>()?;
+
+        Ok(Case {
+            requirements,
+            alternatives,
+        })
+    }
 }
 
 pub enum Pattern {
     Star,
     Variant(DataVariant),
     Variable(DataVariable),
+}
+
+impl TryFrom<(&syntax::Pattern, &RuleName, &DataName, &ParsedGrammar)> for Pattern {
+    type Error = fault::DynamicErr;
+
+    fn try_from(
+        (parsed_pattern, rule_name, expected_type, parsed_grammar): (
+            &syntax::Pattern,
+            &RuleName,
+            &DataName,
+            &ParsedGrammar,
+        ),
+    ) -> Result<Self, Self::Error> {
+        match parsed_pattern {
+            syntax::Pattern::Star => Ok(Pattern::Star),
+
+            // If it's a `Abbr<DataVariant>`, ensure it is a member of the
+            // expected `DataDecl`'s variants list.
+            syntax::Pattern::Variant(abbr_variant) => {
+                let expected_data_decl = parsed_grammar
+                    .data_decls
+                    .iter()
+                    .find(|data_decl| &data_decl.name == expected_type)
+                    .expect(&format!(
+                        "Expected {} to be a valid `DataName`!",
+                        expected_type,
+                    ));
+
+                let resolved_variant = expected_data_decl.lookup_variant(abbr_variant)?;
+
+                Ok(Pattern::Variant(resolved_variant.clone()))
+            }
+
+            // If its a `syntax::DataVariable`, then we need to:
+            //     1. translate it into a `resolve::DataVariable`, and
+            //     2. verify that it's it refers to the correct `DataDecl`.
+            syntax::Pattern::Variable(abbr_variable) => {
+                let resolved_variable: DataVariable = (abbr_variable, parsed_grammar).try_into()?;
+
+                if &resolved_variable.data_name != expected_type {
+                    return Err(fault::DynamicErr::PatternMatchTypeError {
+                        rule_name: rule_name.to_string(),
+                        expected_type: expected_type.to_string(),
+                        variable_type: resolved_variable.data_name.to_string(),
+                        pattern_variable: abbr_variable.to_string(),
+                    });
+                }
+
+                Ok(Pattern::Variable(resolved_variable))
+            }
+        }
+    }
 }

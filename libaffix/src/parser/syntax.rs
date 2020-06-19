@@ -134,23 +134,26 @@ impl DataDecl {
     ///     2. If more than one `DataVariant` in `self` matches the abbreviated
     ///        argument, then both matching `DataVariant`s will be returned as
     ///        a pair, i.e. like: `Err(Some((1st_match, 2nd_match)))`.
-    pub fn lookup_variant(
-        &self,
-        abbr_variant: &Abbr<DataVariant>,
-    ) -> Result<&DataVariant, Option<(&DataVariant, &DataVariant)>> {
-        let mut found = None;
+    pub fn lookup_variant(&self, abbr_variant: &Abbr<DataVariant>) -> DynamicRes<&DataVariant> {
+        let mut found: Option<&DataVariant> = None;
 
         for variant in self.variants.keys() {
             if abbreviates(abbr_variant, variant) {
                 if let Some(prev_match) = found {
-                    return Err(Some((prev_match, variant)));
+                    return Err(DynamicErr::AmbiguousSymbol {
+                        symbol: abbr_variant.to_string(),
+                        possibility1: prev_match.to_string(),
+                        possibility2: variant.to_string(),
+                    });
                 } else {
                     found = Some(variant);
                 }
             }
         }
 
-        found.ok_or(None)
+        found.ok_or(DynamicErr::UnboundSymbol {
+            symbol: abbr_variant.to_string(),
+        })
     }
 }
 
@@ -262,6 +265,18 @@ pub struct RuleRef {
     pub args: Vec<Argument>,
 }
 
+impl fmt::Display for RuleRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.rule)?;
+
+        for arg in &self.args {
+            write!(f, ".{}", arg)?;
+        }
+
+        Ok(())
+    }
+}
+
 /// A variable that represents a data variant.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct DataVariable(pub Abbr<DataName>, pub IStr);
@@ -338,6 +353,21 @@ pub struct Guard {
     pub requirements: Vector<Pattern>,
 }
 
+impl fmt::Display for Guard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut reqs = self.requirements.iter();
+
+        if let Some(first) = reqs.next() {
+            write!(f, "{}", first)?;
+            for pattern in reqs {
+                write!(f, ".{}", pattern)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 impl Guard {
     pub(crate) fn append(&mut self, other: &Self) {
         for req in &other.requirements {
@@ -352,6 +382,16 @@ pub enum Pattern {
     Star,
     Variant(Abbr<DataVariant>),
     Variable(DataVariable),
+}
+
+impl fmt::Display for Pattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Pattern::Star => write!(f, "*"),
+            Pattern::Variant(v) => write!(f, "{}", v),
+            Pattern::Variable(v) => write!(f, "{}", v),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]

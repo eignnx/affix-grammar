@@ -30,7 +30,6 @@ impl<'src> From<StaticErr<'src>> for wasm_bindgen::JsValue {
 #[non_exhaustive]
 #[derive(Error, Debug, Serialize)]
 pub enum DynamicErr {
-    #[allow(dead_code)]
     #[error(
         "No case of rule `{rule_name}` matches the current arguments: \
         {arguments}"
@@ -75,25 +74,42 @@ pub enum DynamicErr {
     MaxTrialsExceeded { trials: usize },
 
     #[error(
-        "I got the wrong number of values sent to the rule `{rule_name}`! These \
-        values were passed in: {arguments:?} but I needed {expected_len} values!"
+        "I got the wrong number of values sent to the rule `{rule_name}`! I \
+        needed {expected_len} argument(s), but the call-site looks like this: \
+        `{call_site}`."
     )]
     WrongArityRuleReference {
         rule_name: String,
-        arguments: Vec<String>,
+        call_site: String,
+        expected_len: usize,
+    },
+
+    #[error(
+        "Hmm... According to its signature, the rule `{rule_name}` accepts \
+        {expected_len} argument(s), but one of your case guards—the one that \
+        looks like `{guard}`—expects a different number of arguments."
+    )]
+    WrongArityCaseGuard {
+        rule_name: String,
+        guard: String,
         expected_len: usize,
     },
 
     // TODO: rewrite this error message when code line-column can be provided!
     #[error(
-        "It looks like you're assuming that a `{pattern_type}` value will be \
-        matched here, but in actuality, only values of type `{argument_type}` \
-        will reach this point of the case analysis. Where you ask? Search for \
-        a case arm with a pattern variable named `{pattern_variable}`."
+        "It looks like you're trying to use a variable whose type is \
+        `{variable_type}` in one of the case arms of the rule `{rule_name}`. \
+        According the `{rule_name}`'s signature, only data variants of \
+        `{expected_type}` will be matched against the pattern variable \
+        `{pattern_variable}`. But you've named it in such a way that people \
+        reading your grammar might think that variants of a `{variable_type}`
+        will be bound to `{pattern_variable}`. Could you rename the variable \
+        for me please?"
     )]
     PatternMatchTypeError {
-        pattern_type: String,
-        argument_type: String,
+        rule_name: String,
+        expected_type: String,
+        variable_type: String,
         pattern_variable: String,
     },
 

@@ -120,10 +120,10 @@ where
     ) -> DynamicRes<Option<State>> {
         // TODO: add type checking here? When ready, use the currently-unused `_types` parameter.
         if guard.requirements.len() != arguments.len() {
-            let arguments = arguments.iter().map(|val| val.to_string()).collect();
+            // let arguments = arguments.iter().map(|val| val.to_string()).collect();
             return Err(DynamicErr::WrongArityRuleReference {
                 rule_name: rule_name.to_string(),
-                arguments,
+                call_site: format!("<unknown RuleName>.{:?}", arguments),
                 expected_len: guard.requirements.len(),
             });
         }
@@ -158,8 +158,9 @@ where
                             self.grammar.data_decl_from_abbr_variant(&arg)?;
 
                         return Err(DynamicErr::PatternMatchTypeError {
-                            pattern_type: variable_decl.name.to_string(),
-                            argument_type: variant_decl.name.to_string(),
+                            rule_name: "<unknown RuleName>".into(),
+                            variable_type: variant_decl.name.to_string(), // TODO: not so great, but temporary.
+                            expected_type: variable_decl.name.to_string(), // TODO: not so great, but temporary.
                             pattern_variable: var.to_string(),
                         });
                     }
