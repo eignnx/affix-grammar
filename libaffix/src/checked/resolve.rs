@@ -1,4 +1,4 @@
-//! Walks a `parser::syntax::ParsedGrammar` and transforms it into a `checked::syntax::Grammar`. As
+//! Walks a `parser::syntax::ParsedGrammar` and transforms it into a `checked::semantics::ResolvedGrammar`. As
 //! this is happening, static semantic errors may be thrown.
 
 use crate::fault;
@@ -8,12 +8,15 @@ use internship::IStr;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 
-pub struct Grammar {
+/// A version of the grammar in which all of the identifiers have been verified
+/// as refering -- unambiguously -- to valid `DataDecl`s, `RuleDecl`s, or
+/// `DataVariant`s.
+pub struct ResolvedGrammar {
     pub data_decls: HashMap<DataName, DataDecl>,
     pub rule_decls: HashMap<RuleName, RuleDecl>,
 }
 
-impl Default for Grammar {
+impl Default for ResolvedGrammar {
     fn default() -> Self {
         Self {
             data_decls: Default::default(),
@@ -22,12 +25,12 @@ impl Default for Grammar {
     }
 }
 
-/// The main translation impl from `syntax::ParsedGrammar` to `semantics::Grammar`.
-impl std::convert::TryFrom<ParsedGrammar> for Grammar {
+/// The main translation impl from `syntax::ParsedGrammar` to `semantics::ResolvedGrammar`.
+impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
     type Error = fault::DynamicErr;
 
     fn try_from(parsed_grammar: ParsedGrammar) -> fault::DynamicRes<Self> {
-        let mut new_grammar = Grammar::default();
+        let mut new_grammar = ResolvedGrammar::default();
 
         // First we need to get the unambiguously-typed signatures of all the
         // rules.
@@ -42,7 +45,7 @@ impl std::convert::TryFrom<ParsedGrammar> for Grammar {
 /// Validates all the `syntax::DataDecl`s, and adds the validated versions to
 /// the new grammar.
 fn validate_data_decls(
-    new_grammar: &mut Grammar,
+    new_grammar: &mut ResolvedGrammar,
     parsed_grammar: &ParsedGrammar,
     rule_sigs: &SignatureMap,
 ) -> fault::DynamicRes<()> {
