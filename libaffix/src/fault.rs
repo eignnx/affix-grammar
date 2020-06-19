@@ -47,12 +47,12 @@ pub enum DynamicErr {
                            // TODO: move this into semantic analysis phase, not runtime
     },
 
-    #[error("I'm not sure what the symbol '{symbol}' refers to. Did you mistype?")]
+    #[error("I'm not sure what the symbol `{symbol}` refers to. Did you mistype?")]
     UnboundSymbol { symbol: String },
 
     #[error(
-        "Ambiguous variable name '{symbol}'! Could refer to either \
-        '{possibility1}' or '{possibility2}'."
+        "Ambiguous variable name `{symbol}`! Could refer to either \
+        `{possibility1}` or `{possibility2}`."
     )]
     AmbiguousSymbol {
         symbol: String,
@@ -61,7 +61,7 @@ pub enum DynamicErr {
     },
 
     #[error(
-        "I don't know how to print the datavariant '@{symbol}' in a \
+        "I don't know how to print the datavariant `@{symbol}` in a \
         user-friendly way!"
     )]
     NoDataVariantStringification { symbol: String },
@@ -75,7 +75,7 @@ pub enum DynamicErr {
     MaxTrialsExceeded { trials: usize },
 
     #[error(
-        "I got the wrong number of values sent to the rule '{rule_name}'! These \
+        "I got the wrong number of values sent to the rule `{rule_name}`! These \
         values were passed in: {arguments:?} but I needed {expected_len} values!"
     )]
     WrongArityRuleReference {
@@ -86,16 +86,34 @@ pub enum DynamicErr {
 
     // TODO: rewrite this error message when code line-column can be provided!
     #[error(
-        "It looks like you're assuming that a '{pattern_type}' value will be \
-        matched here, but in actuality, only values of type '{argument_type}' \
+        "It looks like you're assuming that a `{pattern_type}` value will be \
+        matched here, but in actuality, only values of type `{argument_type}` \
         will reach this point of the case analysis. Where you ask? Search for \
-        a case arm with a pattern variable named '{pattern_variable}'."
+        a case arm with a pattern variable named `{pattern_variable}`."
     )]
     PatternMatchTypeError {
         pattern_type: String,
         argument_type: String,
         pattern_variable: String,
     },
+
+    #[error(
+        "Hey, I'm not sure which data variant you're referring to here. You \
+        tried calling `{rule_ref}` with the argument `{abbr_variant}`, but \
+        that's not a variant that's defined in the `{data_type_name}` data \
+        declaration. What gives?"
+    )]
+    UnknownDataVariantInRuleRef {
+        abbr_variant: String,
+        data_type_name: String,
+        rule_ref: String,
+    },
+
+    #[error(
+        "Oops! Looks like you have *two* declarations named `{decl_name}`! \
+        Which one do you want to keep?"
+    )]
+    DuplicateDeclaration { decl_name: String },
 }
 
 #[derive(Debug, Serialize)]

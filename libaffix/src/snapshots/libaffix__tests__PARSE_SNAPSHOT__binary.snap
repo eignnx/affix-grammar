@@ -29,7 +29,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "odd_or_even_pair",
-                    "vars": []
+                    "args": []
                   }
                 }
               ]
@@ -52,7 +52,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "number",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Bit",
@@ -71,7 +71,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "number",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Bit",

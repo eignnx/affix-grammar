@@ -43,7 +43,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",

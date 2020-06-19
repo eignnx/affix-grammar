@@ -34,7 +34,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "foo",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "J",
@@ -47,7 +47,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "bar",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "J",

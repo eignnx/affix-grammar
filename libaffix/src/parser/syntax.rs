@@ -11,36 +11,41 @@ pub struct ParsedGrammar {
 }
 
 impl ParsedGrammar {
-    /// Given a `DataVariable`, this function will perform a lookup in the
-    /// grammar and return the `DataDecl` that the variable refers to. Fails if
-    /// no `DataDecl` matches the variable, or if the variable is ambiguous and
-    /// could refer to multiple `DataDecl`s.
-    pub fn data_decl_from_abbr_variable<'grammar>(
+    pub fn data_decl_from_abbr_data_name<'grammar>(
         &'grammar self,
-        var: &DataVariable,
+        abbr_name: &Abbr<DataName>,
     ) -> DynamicRes<&'grammar DataDecl> {
         let mut matches = self
             .data_decls
             .iter()
-            .filter(|decl| decl.name.matches_variable(var));
-
-        let DataVariable(name, _num) = var;
+            .filter(|decl| decl.name.matches_abbreviation(abbr_name));
 
         let first = matches.next().ok_or_else(|| DynamicErr::UnboundSymbol {
-            symbol: name.to_string(),
+            symbol: abbr_name.to_string(),
         })?;
 
         if let Some(second) = matches.next() {
             let DataName(fst) = &first.name;
             let DataName(snd) = &second.name;
             return Err(DynamicErr::AmbiguousSymbol {
-                symbol: name.to_string(),
+                symbol: abbr_name.to_string(),
                 possibility1: fst.to_string(),
                 possibility2: snd.to_string(),
             });
         }
 
         Ok(first)
+    }
+
+    /// Given a `DataVariable`, this function will perform a lookup in the
+    /// grammar and return the `DataDecl` that the variable refers to. Fails if
+    /// no `DataDecl` matches the variable, or if the variable is ambiguous and
+    /// could refer to multiple `DataDecl`s.
+    pub fn data_decl_from_abbr_variable<'grammar>(
+        &'grammar self,
+        DataVariable(name, _num): &DataVariable,
+    ) -> DynamicRes<&'grammar DataDecl> {
+        self.data_decl_from_abbr_data_name(name)
     }
 
     pub fn data_decl_from_abbr_variant<'grammar>(
@@ -121,8 +126,36 @@ pub struct DataDecl {
     pub variants: BTreeMap<DataVariant, Vec<SententialForm>>,
 }
 
+impl DataDecl {
+    /// Allows an `Abbr<DataVariant>` to be resolved to an unabbreviated
+    /// `DataVariant`. There are two error conditions:
+    ///     1. If no `DataVariant` in the `self` matches the abbreviated
+    ///        argument, then `Err(None)` is returned.
+    ///     2. If more than one `DataVariant` in `self` matches the abbreviated
+    ///        argument, then both matching `DataVariant`s will be returned as
+    ///        a pair, i.e. like: `Err(Some((1st_match, 2nd_match)))`.
+    pub fn lookup_variant(
+        &self,
+        abbr_variant: &Abbr<DataVariant>,
+    ) -> Result<&DataVariant, Option<(&DataVariant, &DataVariant)>> {
+        let mut found = None;
+
+        for variant in self.variants.keys() {
+            if abbreviates(abbr_variant, variant) {
+                if let Some(prev_match) = found {
+                    return Err(Some((prev_match, variant)));
+                } else {
+                    found = Some(variant);
+                }
+            }
+        }
+
+        found.ok_or(None)
+    }
+}
+
 /// The name of a data-type.
-#[derive(Debug, Clone, PartialEq, Serialize, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Serialize, Eq, PartialOrd, Ord, Hash)]
 pub struct DataName(pub IStr);
 
 impl AsRef<str> for DataName {
@@ -140,9 +173,9 @@ impl fmt::Display for DataName {
 impl DataName {
     /// Performs an equality check with a `DataVariable` since a `DataVariable`
     /// can be abbreviated.
-    pub fn matches_variable(&self, DataVariable(var_name, _number): &DataVariable) -> bool {
+    pub fn matches_abbreviation(&self, abbr: &Abbr<DataName>) -> bool {
         let DataName(data_name) = self;
-        abbreviates(var_name, data_name)
+        abbreviates(abbr, data_name)
     }
 }
 
@@ -194,7 +227,7 @@ pub fn abbreviates(abbr: &Abbr<impl AsRef<str>>, src: impl AsRef<str>) -> bool {
 }
 
 /// The name of a variant of a data-type.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct DataVariant(pub IStr);
 
 impl AsRef<str> for DataVariant {
@@ -218,7 +251,7 @@ pub enum Token {
     RuleRef(RuleRef),
     StrLit(IStr),
     DataVariable(DataVariable),
-    DataVariant(DataVariant),
+    DataVariant(Abbr<DataVariant>),
     Plus,
 }
 
@@ -226,7 +259,7 @@ pub enum Token {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RuleRef {
     pub rule: Abbr<RuleName>,
-    pub vars: Vec<Argument>,
+    pub args: Vec<Argument>,
 }
 
 /// A variable that represents a data variant.
@@ -254,6 +287,15 @@ pub enum Argument {
     Variable(DataVariable),
 }
 
+impl fmt::Display for Argument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Variant(v) => write!(f, "{}", v),
+            Self::Variable(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Serialize)]
 pub struct RuleDecl {
     pub signature: RuleSig,
@@ -268,7 +310,7 @@ pub struct RuleSig {
 }
 
 /// The name of a rule.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct RuleName(pub IStr);
 
 impl AsRef<str> for RuleName {

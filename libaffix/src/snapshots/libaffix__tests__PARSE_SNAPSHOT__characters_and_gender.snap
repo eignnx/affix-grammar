@@ -30,7 +30,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",
@@ -46,7 +46,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "name",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",
@@ -62,7 +62,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",
@@ -78,7 +78,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "name",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",
@@ -94,7 +94,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",
@@ -110,7 +110,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "name",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gender",

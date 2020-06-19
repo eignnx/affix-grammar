@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate serde_derive;
 
+pub mod checked;
 pub mod fault;
 pub mod gen;
 pub mod literate;
 pub mod parser;
-pub mod semantics;
 
 #[cfg(test)]
 mod tests {

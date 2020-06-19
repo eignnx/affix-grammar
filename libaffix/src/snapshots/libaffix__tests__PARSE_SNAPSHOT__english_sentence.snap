@@ -31,7 +31,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "english_sentence",
-                    "vars": []
+                    "args": []
                   }
                 }
               ]
@@ -57,7 +57,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -73,7 +73,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "object",
-                    "vars": []
+                    "args": []
                   }
                 },
                 "Plus",
@@ -88,7 +88,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -104,7 +104,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "object",
-                    "vars": []
+                    "args": []
                   }
                 },
                 {
@@ -118,7 +118,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -134,13 +134,13 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "object",
-                    "vars": []
+                    "args": []
                   }
                 },
                 {
                   "RuleRef": {
                     "rule": "when",
-                    "vars": []
+                    "args": []
                   }
                 },
                 "Plus",
@@ -155,7 +155,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -171,7 +171,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -193,7 +193,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -209,7 +209,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "object",
-                    "vars": []
+                    "args": []
                   }
                 },
                 {
@@ -220,13 +220,13 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "english_sentence",
-                    "vars": []
+                    "args": []
                   }
                 },
                 {
                   "RuleRef": {
                     "rule": "connective",
-                    "vars": []
+                    "args": []
                   }
                 },
                 "Plus",
@@ -236,7 +236,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "english_sentence",
-                    "vars": []
+                    "args": []
                   }
                 }
               ]
@@ -391,7 +391,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -413,7 +413,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "subject",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "S",
@@ -431,7 +431,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "uncountable_thing",
-                    "vars": []
+                    "args": []
                   }
                 }
               ],
@@ -442,7 +442,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "uncountable_thing",
-                    "vars": []
+                    "args": []
                   }
                 }
               ],
@@ -453,7 +453,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "uncountable_thing",
-                    "vars": []
+                    "args": []
                   }
                 }
               ]

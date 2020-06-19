@@ -187,15 +187,20 @@ where
         state: &'st mut State,
     ) -> DynamicRes<&'st mut DataVariant> {
         Ok(state.entry(var.clone()).or_insert({
+            let DataVariable(var_name, _number) = var;
+
             let mut iter = self
                 .grammar
                 .data_decls
                 .iter()
-                .filter(|decl| decl.name.matches_variable(var));
+                .filter(|decl| decl.name.matches_abbreviation(var_name));
+
             let res = iter
                 .next()
                 .expect(&format!("a rule matching {:?} exists", var));
+
             let more = iter.next();
+
             if let Some(more_name) = more {
                 return Err(DynamicErr::AmbiguousSymbol {
                     symbol: var.to_string(),
@@ -203,6 +208,7 @@ where
                     possibility2: more_name.name.to_string(),
                 });
             }
+
             res.variants
                 .keys()
                 .choose(&mut *self.rng.borrow_mut())
@@ -213,7 +219,7 @@ where
 
     fn stringify_data_variant<'gen, 'buf>(
         &'gen self,
-        variant: DataVariant,
+        variant: &DataVariant,
         state: &mut State,
     ) -> DynamicRes<Vector<OutToken>>
     where
@@ -256,7 +262,7 @@ where
     ) -> DynamicRes<Vector<OutToken>> {
         let start_call = Token::RuleRef(RuleRef {
             rule: start,
-            vars: vec![],
+            args: vec![],
         });
         let start_sentence = vector![start_call];
         self.generate_non_unique_from_sentence(start_sentence, state)
@@ -274,19 +280,21 @@ where
             match token {
                 Token::StrLit(sym) => new_sentence.push_back(sym.into()),
                 Token::Plus => new_sentence.push_back(OutToken::Plus),
-                Token::DataVariant(variant) => {
+                Token::DataVariant(abbr_variant) => {
+                    let (_decl, variant) =
+                        self.grammar.data_decl_from_abbr_variant(&abbr_variant)?;
                     let to_append = self.stringify_data_variant(variant, state)?;
                     new_sentence.append(to_append);
                 }
                 Token::DataVariable(ref variable) => {
                     let variant = self.value_of_variable(variable, state)?.clone();
-                    let to_append = self.stringify_data_variant(variant, state)?;
+                    let to_append = self.stringify_data_variant(&variant, state)?;
                     new_sentence.append(to_append);
                 }
-                Token::RuleRef(RuleRef { ref rule, ref vars }) => {
+                Token::RuleRef(RuleRef { ref rule, ref args }) => {
                     // Ensure each of `vars` has a binding.
                     let mut arguments = vec![];
-                    for arg in vars {
+                    for arg in args {
                         match arg {
                             // This is a case like `they.Number` where a variable is being passed in.
                             Argument::Variable(var) => {

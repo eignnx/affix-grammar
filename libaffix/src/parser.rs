@@ -185,10 +185,10 @@ fn argument(i: &str) -> Res<Argument> {
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn rule_ref(i: &str) -> Res<RuleRef> {
     let (i, name) = lower_ident(i)?;
-    let (i, vars) = many0(preceded(char('.'), argument))(i)?;
+    let (i, args) = many0(preceded(char('.'), argument))(i)?;
     let reference = RuleRef {
         rule: Abbr::new(RuleName(name)),
-        vars,
+        args,
     };
     Ok((i, reference))
 }
@@ -235,7 +235,9 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                     context(
                         "a data interpolation",
                         cut(alt((
-                            map(lower_ident, |sym| Token::DataVariant(DataVariant(sym))),
+                            map(lower_ident, |sym| {
+                                Token::DataVariant(Abbr::new(DataVariant(sym)))
+                            }),
                             map(variable, Token::DataVariable),
                             unexpected_keyword,
                             bad_data_interpolation,
@@ -626,7 +628,7 @@ rule want.Number.Person =
                         Token::StrLit(IStr::new("I")),
                         Token::RuleRef(RuleRef {
                             rule: Abbr::new(RuleName(IStr::new("want"))),
-                            vars: vec![
+                            args: vec![
                                 Argument::Variant(Abbr::new(DataVariant(IStr::new("singular")))),
                                 Argument::Variant(Abbr::new(DataVariant(IStr::new("1st"))))
                             ]

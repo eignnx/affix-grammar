@@ -46,7 +46,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Number",
@@ -253,7 +253,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variant": "plural"
                       },

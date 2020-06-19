@@ -30,7 +30,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "G",
@@ -46,7 +46,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "name",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "G",
@@ -62,7 +62,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "G",
@@ -78,7 +78,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "name",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gr",
@@ -94,7 +94,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "they",
-                    "vars": [
+                    "args": [
                       {
                         "Variable": [
                           "Gndr",
@@ -110,7 +110,7 @@ expression: parse_res
                 {
                   "RuleRef": {
                     "rule": "name",
-                    "vars": [
+                    "args": [
                       {
                         "Variant": "e"
                       }
