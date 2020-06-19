@@ -33,35 +33,47 @@ impl std::convert::TryFrom<ParsedGrammar> for Grammar {
         // rules.
         let rule_sigs = validated_rule_signatures(&parsed_grammar)?;
 
-        // Validate all the `syntax::DataDecl`s, and add the validated versions
-        // to the new grammar.
-        for data_decl in &parsed_grammar.data_decls {
-            let mut variants: HashMap<DataVariant, Vec<SententialForm>> = HashMap::new();
-            for (variant, stringifications) in &data_decl.variants {
-                let mut new_stringifications = Vec::new();
-                for stringification in stringifications {
-                    let mut new_stringification = Vector::new();
-                    for parsed_token in stringification {
-                        let token = (parsed_token, &parsed_grammar, &rule_sigs).try_into()?;
-                        new_stringification.push_back(token);
-                    }
-                    new_stringifications.push(new_stringification);
-                }
-                variants.insert(variant.clone(), new_stringifications);
-            }
-
-            if let Some(_overwritten) = new_grammar
-                .data_decls
-                .insert(data_decl.name.clone(), DataDecl { variants })
-            {
-                return Err(fault::DynamicErr::DuplicateDeclaration {
-                    decl_name: data_decl.name.to_string(),
-                });
-            }
-        }
+        validate_data_decls(&mut new_grammar, &parsed_grammar, &rule_sigs)?;
 
         Ok(new_grammar)
     }
+}
+
+/// Validates all the `syntax::DataDecl`s, and adds the validated versions to
+/// the new grammar.
+fn validate_data_decls(
+    new_grammar: &mut Grammar,
+    parsed_grammar: &ParsedGrammar,
+    rule_sigs: &SignatureMap,
+) -> fault::DynamicRes<()> {
+    parsed_grammar.data_decls.iter().try_for_each(|data_decl| {
+        let mut variants: HashMap<DataVariant, Vec<SententialForm>> = HashMap::new();
+        for (variant, stringifications) in &data_decl.variants {
+            let mut new_stringifications = Vec::new();
+            for stringification in stringifications {
+                let mut new_stringification = Vector::new();
+                for parsed_token in stringification {
+                    let token = (parsed_token, parsed_grammar, rule_sigs).try_into()?;
+                    new_stringification.push_back(token);
+                }
+                new_stringifications.push(new_stringification);
+            }
+            variants.insert(variant.clone(), new_stringifications);
+        }
+
+        if let Some(_overwritten) = new_grammar
+            .data_decls
+            .insert(data_decl.name.clone(), DataDecl { variants })
+        {
+            return Err(fault::DynamicErr::DuplicateDeclaration {
+                decl_name: data_decl.name.to_string(),
+            });
+        }
+
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 type RuleSig = Vec<DataName>;
@@ -155,7 +167,7 @@ impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
             &SignatureMap,
         ),
     ) -> fault::DynamicRes<Self> {
-        // First lookup the referenced rule name. Make sure it refers to an
+        // First lookup the unabbreviated rule name. Make sure it refers to an
         // actual `RuleDecl`.
         let (_rule_decl, rule_name) =
             parsed_grammar.rule_decl_from_abbr_rule_name(&parsed_rule_ref.rule)?;
@@ -187,49 +199,7 @@ impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
             .args
             .iter()
             .zip(sig)
-            .map(|(arg, param_type)| {
-                let expected_data_decl = parsed_grammar
-                    .data_decls
-                    .iter()
-                    .find(|decl| &decl.name == param_type)
-                    .expect("a corresponding DataDecl with this name exists");
-
-                match arg {
-                    // If the argument is a `DataVariant`, we just need make sure it refers to a
-                    // variant defined in the `DataDecl`.
-                    syntax::Argument::Variant(abbr_variant) => {
-                        match expected_data_decl.lookup_variant(abbr_variant) {
-                            Ok(data_variant) => Ok(Argument::Variant(data_variant.clone())),
-                            Err(None) => Err(fault::DynamicErr::UnknownDataVariantInRuleRef {
-                                abbr_variant: abbr_variant.to_string(),
-                                data_type_name: param_type.to_string(),
-                                rule_ref: parsed_rule_ref.rule.to_string(),
-                            }),
-                            Err(Some((variant1, variant2))) => {
-                                Err(fault::DynamicErr::AmbiguousSymbol {
-                                    symbol: abbr_variant.to_string(),
-                                    possibility1: variant1.to_string(),
-                                    possibility2: variant2.to_string(),
-                                })
-                            }
-                        }
-                    }
-
-                    // If the argument is a `DataVariable`, then we need to verify that it unambiguously
-                    // uses an appropriate abbreviation of the correct `DataDecl`'s name. And that's
-                    // basically it.
-                    syntax::Argument::Variable(abbr_variable) => {
-                        let data_decl =
-                            parsed_grammar.data_decl_from_abbr_variable(abbr_variable)?;
-                        let syntax::DataVariable(_, number) = abbr_variable;
-
-                        Ok(Argument::Variable(DataVariable {
-                            data_name: data_decl.name.clone(),
-                            number: number.clone(),
-                        }))
-                    }
-                }
-            })
+            .map(|(arg, param_type)| (arg, param_type, parsed_rule_ref, parsed_grammar).try_into())
             .collect::<fault::DynamicRes<_>>()?;
 
         Ok(RuleRef {
@@ -243,6 +213,64 @@ impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
 pub enum Argument {
     Variant(DataVariant),
     Variable(DataVariable),
+}
+
+impl
+    TryFrom<(
+        &syntax::Argument,
+        &DataName,
+        &syntax::RuleRef,
+        &ParsedGrammar,
+    )> for Argument
+{
+    type Error = fault::DynamicErr;
+    fn try_from(
+        (arg, param_type, parsed_rule_ref, parsed_grammar): (
+            &syntax::Argument,
+            &DataName,
+            &syntax::RuleRef,
+            &ParsedGrammar,
+        ),
+    ) -> Result<Self, Self::Error> {
+        let expected_data_decl = parsed_grammar
+            .data_decls
+            .iter()
+            .find(|decl| &decl.name == param_type)
+            .expect("a corresponding DataDecl with this name exists");
+
+        match arg {
+            // If the argument is a `DataVariant`, we just need make sure it refers to a
+            // variant defined in the `DataDecl`.
+            syntax::Argument::Variant(abbr_variant) => {
+                match expected_data_decl.lookup_variant(abbr_variant) {
+                    Ok(data_variant) => Ok(Argument::Variant(data_variant.clone())),
+                    Err(None) => Err(fault::DynamicErr::UnknownDataVariantInRuleRef {
+                        abbr_variant: abbr_variant.to_string(),
+                        data_type_name: param_type.to_string(),
+                        rule_ref: parsed_rule_ref.rule.to_string(),
+                    }),
+                    Err(Some((variant1, variant2))) => Err(fault::DynamicErr::AmbiguousSymbol {
+                        symbol: abbr_variant.to_string(),
+                        possibility1: variant1.to_string(),
+                        possibility2: variant2.to_string(),
+                    }),
+                }
+            }
+
+            // If the argument is a `DataVariable`, then we need to verify that it unambiguously
+            // uses an appropriate abbreviation of the correct `DataDecl`'s name. And that's
+            // basically it.
+            syntax::Argument::Variable(abbr_variable) => {
+                let data_decl = parsed_grammar.data_decl_from_abbr_variable(abbr_variable)?;
+                let syntax::DataVariable(_, number) = abbr_variable;
+
+                Ok(Argument::Variable(DataVariable {
+                    data_name: data_decl.name.clone(),
+                    number: number.clone(),
+                }))
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
