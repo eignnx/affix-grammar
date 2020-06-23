@@ -1,0 +1,16 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Err": {
+    "InexhaustiveCaseAnalysis": {
+      "rule_name": "they",
+      "arguments": [
+        "singular",
+        "3rd",
+        "masculine"
+      ]
+    }
+  }
+}

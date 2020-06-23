@@ -104,11 +104,10 @@ where
         }
 
         // We are out of possibilities. This case must not have been handled in the case analysis.
-        Err(DynamicErr::inexhaustive_case_analysis(
-            &self.grammar.rule_decls,
-            &rule_decl.signature.name,
-            arguments,
-        ))
+        Err(DynamicErr::InexhaustiveCaseAnalysis {
+            rule_name: rule_decl.signature.name.to_string(),
+            arguments: arguments.iter().map(ToString::to_string).collect(),
+        })
     }
 
     fn allowable<'st>(

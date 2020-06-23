@@ -1,7 +1,4 @@
-use crate::parser::{
-    syntax::{DataVariant, RuleDecl, RuleName},
-    typo,
-};
+use crate::parser::typo;
 use thiserror::Error;
 
 pub type StaticRes<'src, T = ()> = std::result::Result<T, StaticErr<'src>>;
@@ -31,12 +28,22 @@ impl<'src> From<StaticErr<'src>> for wasm_bindgen::JsValue {
 #[derive(Error, Debug, Serialize)]
 pub enum DynamicErr {
     #[error(
-        "No case of rule `{rule_name}` matches the current arguments: \
-        {arguments}"
+        "The cases for the rule `{rule_name}` are not exhaustive! For \
+        instance, none of your cases would handle a rule invocation  like \
+        `{rule_name}.{arguments:?}`."
     )]
     InexhaustiveCaseAnalysis {
         rule_name: String,
-        arguments: ArgMap,
+        arguments: Vec<String>,
+    },
+
+    #[error(
+        "Case #{unused_case_number} in the rule `{rule_name}` is unnecessary \
+        because it can never be reached. Just FYI."
+    )]
+    UnreacheableRuleCase {
+        rule_name: String,
+        unused_case_number: usize,
     },
 
     #[allow(dead_code)]
@@ -150,42 +157,6 @@ impl std::fmt::Display for ArgMap {
         }
         write!(f, "}}")?;
         Ok(())
-    }
-}
-
-impl DynamicErr {
-    pub fn inexhaustive_case_analysis(
-        rules: &[RuleDecl],
-        rule_name: &RuleName,
-        arguments: &Vec<DataVariant>,
-    ) -> Self {
-        let typ_names = rules
-            .iter()
-            .filter(|decl| &decl.signature.name == rule_name)
-            .next()
-            .expect("rule to exist")
-            .signature
-            .parameter_types
-            .iter()
-            .map(|typ_name| typ_name.clone().abbreviation());
-        let arg_names = arguments.iter().map(|evald_arg| evald_arg.0.as_str());
-        let bindings = arg_names
-            .zip(typ_names)
-            .map(|(value, typ)| Binding {
-                typ: typ.to_string(),
-                value: value.into(),
-            })
-            .collect::<Vec<_>>();
-        Self::InexhaustiveCaseAnalysis {
-            rule_name: rule_name.0.as_str().into(),
-            arguments: ArgMap(bindings),
-        }
-    }
-
-    pub fn unbound_rule_name(rule_name: &str) -> Self {
-        Self::UnboundRuleName {
-            rule_name: rule_name.into(),
-        }
     }
 }
 

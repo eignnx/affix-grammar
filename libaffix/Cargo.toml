@@ -18,6 +18,7 @@ serde_derive = "^1.0.59"
 pulldown-cmark = "0.7.0"
 serde-wasm-bindgen = "0.1.3"
 term_size = "0.3.1"
+itertools = "0.9.0"
 
 [dev-dependencies]
 insta = { version = "0.16", features = ["glob"] }

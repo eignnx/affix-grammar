@@ -4,7 +4,7 @@ use internship::IStr;
 use std::collections::BTreeMap;
 use std::fmt;
 
-#[derive(Debug, Default, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq, Serialize, Clone)]
 pub struct ParsedGrammar {
     pub data_decls: Vec<DataDecl>,
     pub rule_decls: Vec<RuleDecl>,
@@ -120,7 +120,7 @@ impl ParsedGrammar {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct DataDecl {
     pub name: DataName,
     pub variants: BTreeMap<DataVariant, Vec<SententialForm>>,
@@ -311,7 +311,7 @@ impl fmt::Display for Argument {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct RuleDecl {
     pub signature: RuleSig,
     pub cases: Vec<Case>,

@@ -2,10 +2,13 @@
 //! this is happening, static semantic errors may be thrown.
 
 use crate::fault;
-use crate::parser::syntax::{self, Abbr, DataName, DataVariant, ParsedGrammar, RuleName};
+use crate::parser::syntax::{self, Abbr, ParsedGrammar};
 use internship::IStr;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+
+// Re-export these names.
+pub use crate::parser::syntax::{DataName, DataVariant, RuleName};
 
 /// A version of the grammar in which all of the identifiers have been verified
 /// as refering -- unambiguously -- to valid `DataDecl`s, `RuleDecl`s, or
@@ -28,6 +31,16 @@ impl Default for ResolvedGrammar {
 impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
     type Error = fault::DynamicErr;
 
+    fn try_from(parsed_grammar: ParsedGrammar) -> Result<Self, Self::Error> {
+        let (resolved_grammar, _signature_map) = parsed_grammar.try_into()?;
+        Ok(resolved_grammar)
+    }
+}
+
+/// This impl gives back a `SignatureMap` in addition to a `ResolvedGrammar`.
+impl std::convert::TryFrom<ParsedGrammar> for (ResolvedGrammar, SignatureMap) {
+    type Error = fault::DynamicErr;
+
     fn try_from(parsed_grammar: ParsedGrammar) -> fault::DynamicRes<Self> {
         let mut new_grammar = ResolvedGrammar::default();
 
@@ -37,7 +50,7 @@ impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
 
         validate_data_decls(&mut new_grammar, &parsed_grammar, &rule_sigs)?;
 
-        Ok(new_grammar)
+        Ok((new_grammar, rule_sigs))
     }
 }
 
@@ -69,8 +82,8 @@ fn validate_data_decls(
     Ok(())
 }
 
-type RuleSig = Vec<DataName>;
-type SignatureMap = HashMap<RuleName, RuleSig>;
+pub type RuleSig = Vec<DataName>;
+pub type SignatureMap = HashMap<RuleName, RuleSig>;
 
 /// Returns a map of `RuleName`s and their corresponding signatures. It reads
 /// the signatures of all `syntax::RuleDecl`s in the `ParsedGrammar` and for
@@ -330,6 +343,17 @@ pub struct RuleDecl {
     pub cases: Vec<Case>,
 }
 
+impl RuleDecl {
+    pub fn arity(&self) -> usize {
+        let case = self
+            .cases
+            .first()
+            .expect("Invariant Violated: some rule doesn't have any cases!");
+
+        case.arity()
+    }
+}
+
 impl
     TryFrom<(
         &syntax::RuleDecl,
@@ -364,6 +388,27 @@ impl
 pub struct Case {
     pub requirements: Vec<Pattern>,
     pub alternatives: Vec<SententialForm>,
+}
+
+impl Case {
+    pub fn arity(&self) -> usize {
+        self.requirements.len()
+    }
+
+    pub fn covers<'iter>(
+        &self,
+        args: impl Iterator<Item = &'iter &'iter &'iter DataVariant>,
+    ) -> bool {
+        for (patt, arg) in self.requirements.iter().zip(args.into_iter()) {
+            match patt {
+                Pattern::Star | Pattern::Variable(_) => continue,
+                Pattern::Variant(variant) if variant == **arg => continue,
+                Pattern::Variant(_) => return false,
+            }
+        }
+
+        true
+    }
 }
 
 impl
