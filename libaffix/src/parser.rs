@@ -16,10 +16,9 @@ use nom::{
 };
 use std::convert::TryFrom;
 
-use crate::fault::StaticErr;
 use syntax::{
     Abbr, Argument, Case, DataDecl, DataName, DataVariable, DataVariant, Guard, ParsedGrammar,
-    Pattern, RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Token,
+    Pattern, RuleDecl, RuleName, RuleRef, RuleSig, SententialForm, Stringification, Token,
 };
 use typo::{Report, SourcedTypo, Typo};
 
@@ -236,9 +235,9 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
                         "a data interpolation",
                         cut(alt((
                             map(lower_ident, |sym| {
-                                Token::DataVariant(Abbr::new(DataVariant(sym)))
+                                Token::DataVariant(Stringification(Abbr::new(DataVariant(sym))))
                             }),
-                            map(variable, Token::DataVariable),
+                            map(variable, |sym| Token::DataVariable(Stringification(sym))),
                             unexpected_keyword,
                             bad_data_interpolation,
                         ))),
@@ -546,15 +545,34 @@ pub fn parse(i: &str) -> Res<ParsedGrammar> {
     Ok((i, grammar))
 }
 
+#[derive(Debug, Serialize)]
+pub struct ParseErr<'src>(typo::ErrorSummary<'src>);
+
+impl<'src> From<typo::ErrorSummary<'src>> for ParseErr<'src> {
+    fn from(summary: typo::ErrorSummary<'src>) -> Self {
+        Self(summary)
+    }
+}
+
+use std::fmt;
+
+impl<'src> fmt::Display for ParseErr<'src> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(summary) = self;
+        summary.fmt(f)
+    }
+}
+
 /// You must keep the src string alive until after the function terminates so
 /// that errors that reference either of them can be propagated up.
 impl<'src> TryFrom<&'src str> for ParsedGrammar {
-    type Error = StaticErr<'src>;
+    type Error = ParseErr<'src>;
+
     fn try_from(src: &'src str) -> Result<Self, Self::Error> {
         use nom::Err::{Error, Failure, Incomplete};
 
         let (_unparsed_src, grammar) = parse(src).map_err(|e| match e {
-            Failure(report) | Error(report) => StaticErr::from(report.summarize(src)),
+            Failure(report) | Error(report) => ParseErr::from(report.summarize(src)),
             Incomplete(_) => unimplemented!(),
         })?;
 

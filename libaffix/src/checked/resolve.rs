@@ -2,7 +2,7 @@
 //! this is happening, static semantic errors may be thrown.
 
 use crate::fault;
-use crate::parser::syntax::{self, Abbr, ParsedGrammar};
+use crate::parser::syntax::{self, Abbr, ParsedGrammar, Stringification};
 use internship::IStr;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
@@ -29,9 +29,9 @@ impl Default for ResolvedGrammar {
 
 /// The main translation impl from `syntax::ParsedGrammar` to `semantics::ResolvedGrammar`.
 impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
-    fn try_from(parsed_grammar: ParsedGrammar) -> Result<Self, Self::Error> {
+    fn try_from(parsed_grammar: ParsedGrammar) -> fault::SemanticRes<Self> {
         let (resolved_grammar, _signature_map) = parsed_grammar.try_into()?;
         Ok(resolved_grammar)
     }
@@ -39,9 +39,9 @@ impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
 
 /// This impl gives back a `SignatureMap` in addition to a `ResolvedGrammar`.
 impl std::convert::TryFrom<ParsedGrammar> for (ResolvedGrammar, SignatureMap) {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
-    fn try_from(parsed_grammar: ParsedGrammar) -> fault::DynamicRes<Self> {
+    fn try_from(parsed_grammar: ParsedGrammar) -> fault::SemanticRes<Self> {
         let mut new_grammar = ResolvedGrammar::default();
 
         // First we need to get the unambiguously-typed signatures of all the
@@ -60,7 +60,7 @@ fn validate_data_decls(
     new_grammar: &mut ResolvedGrammar,
     parsed_grammar: &ParsedGrammar,
     rule_sigs: &SignatureMap,
-) -> fault::DynamicRes<()> {
+) -> fault::SemanticRes {
     parsed_grammar
         .data_decls
         .iter()
@@ -71,7 +71,7 @@ fn validate_data_decls(
                 .data_decls
                 .insert(parsed_data_decl.name.clone(), new_data_decl)
             {
-                return Err(fault::DynamicErr::DuplicateDeclaration {
+                return Err(fault::SemanticErr::DuplicateDeclaration {
                     decl_name: parsed_data_decl.name.to_string(),
                 });
             }
@@ -89,7 +89,7 @@ pub type SignatureMap = HashMap<RuleName, RuleSig>;
 /// the signatures of all `syntax::RuleDecl`s in the `ParsedGrammar` and for
 /// each one, it does the lookup to verify that it's declared parameter types
 /// are unambiguous and refer to actual `DataDecl`s.
-fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::DynamicRes<SignatureMap> {
+fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::SemanticRes<SignatureMap> {
     parsed_grammar
         .rule_decls
         .iter()
@@ -103,7 +103,7 @@ fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::DynamicRe
                         .data_decl_from_abbr_data_name(abbr_param_type)
                         .map(|data_decl| data_decl.name.clone())
                 })
-                .collect::<fault::DynamicRes<_>>()?;
+                .collect::<fault::SemanticRes<_>>()?;
 
             Ok((rule_decl.signature.name.clone(), parameter_types))
         })
@@ -115,7 +115,7 @@ pub struct DataDecl {
 }
 
 impl TryFrom<(&syntax::DataDecl, &SignatureMap, &ParsedGrammar)> for DataDecl {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_data_decl, rule_sigs, parsed_grammar): (
@@ -123,7 +123,7 @@ impl TryFrom<(&syntax::DataDecl, &SignatureMap, &ParsedGrammar)> for DataDecl {
             &SignatureMap,
             &ParsedGrammar,
         ),
-    ) -> Result<Self, Self::Error> {
+    ) -> fault::SemanticRes<Self> {
         let variants = parsed_data_decl
             .variants
             .iter()
@@ -131,11 +131,11 @@ impl TryFrom<(&syntax::DataDecl, &SignatureMap, &ParsedGrammar)> for DataDecl {
                 let new_stringifications = stringifications
                     .iter()
                     .map(|stringification| (stringification, rule_sigs, parsed_grammar).try_into())
-                    .collect::<fault::DynamicRes<_>>()?;
+                    .collect::<fault::SemanticRes<_>>()?;
 
                 Ok((variant.clone(), new_stringifications))
             })
-            .collect::<fault::DynamicRes<_>>()?;
+            .collect::<fault::SemanticRes<_>>()?;
 
         Ok(DataDecl { variants })
     }
@@ -144,7 +144,7 @@ impl TryFrom<(&syntax::DataDecl, &SignatureMap, &ParsedGrammar)> for DataDecl {
 pub struct SententialForm(Vec<Token>);
 
 impl TryFrom<(&syntax::SententialForm, &SignatureMap, &ParsedGrammar)> for SententialForm {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_sentential_form, rule_sigs, parsed_grammar): (
@@ -152,11 +152,11 @@ impl TryFrom<(&syntax::SententialForm, &SignatureMap, &ParsedGrammar)> for Sente
             &SignatureMap,
             &ParsedGrammar,
         ),
-    ) -> Result<Self, Self::Error> {
+    ) -> fault::SemanticRes<Self> {
         let tokens = parsed_sentential_form
             .iter()
             .map(|parsed_token| (parsed_token, parsed_grammar, rule_sigs).try_into())
-            .collect::<fault::DynamicRes<_>>()?;
+            .collect::<fault::SemanticRes<_>>()?;
 
         Ok(SententialForm(tokens))
     }
@@ -172,33 +172,62 @@ pub enum Token {
 }
 
 impl TryFrom<(&syntax::Token, &ParsedGrammar, &SignatureMap)> for Token {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_token, parsed_grammar, rule_sigs): (&syntax::Token, &ParsedGrammar, &SignatureMap),
-    ) -> fault::DynamicRes<Self> {
+    ) -> fault::SemanticRes<Self> {
         match parsed_token {
             syntax::Token::Plus => Ok(Token::Plus),
             syntax::Token::StrLit(s) => Ok(Self::StrLit(s.clone())),
             syntax::Token::RuleRef(rule_ref) => (rule_ref, parsed_grammar, rule_sigs)
                 .try_into()
                 .map(Self::RuleRef),
-            syntax::Token::DataVariable(variable) => (variable, parsed_grammar)
-                .try_into()
-                .map(Self::DataVariable),
+
+            // Also need to check that this data variant has a stringification.
             syntax::Token::DataVariant(ref abbr_variant) => (abbr_variant, parsed_grammar)
                 .try_into()
                 .map(Self::DataVariant),
+
+            // Also need to check that ALL data variants of this type have a
+            // stringification.
+            syntax::Token::DataVariable(variable) => (variable, parsed_grammar)
+                .try_into()
+                .map(Self::DataVariable),
         }
     }
 }
 
+impl TryFrom<(&Stringification<Abbr<DataVariant>>, &ParsedGrammar)> for DataVariant {
+    type Error = fault::SemanticErr;
+
+    fn try_from(
+        (parsed_variant, parsed_grammar): (&Stringification<Abbr<DataVariant>>, &ParsedGrammar),
+    ) -> fault::SemanticRes<Self> {
+        let (data_decl, variant) =
+            parsed_grammar.data_decl_from_abbr_variant(parsed_variant.inner_ref())?;
+
+        // Check that a stringification for this variant has been defined.
+        if data_decl.variants[variant].is_empty() {
+            return Err(fault::SemanticErr::NoDataVariantStringification {
+                use_case: fault::StringificationUseCase::Variant {
+                    parsed_name: parsed_variant.inner_ref().to_string(),
+                },
+                data_name: data_decl.name.to_string(),
+                variant: variant.to_string(),
+            });
+        }
+
+        Ok(variant.clone())
+    }
+}
+
 impl TryFrom<(&Abbr<DataVariant>, &ParsedGrammar)> for DataVariant {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_variant, parsed_grammar): (&Abbr<DataVariant>, &ParsedGrammar),
-    ) -> fault::DynamicRes<Self> {
+    ) -> fault::SemanticRes<Self> {
         let (_decl, variant) = parsed_grammar.data_decl_from_abbr_variant(parsed_variant)?;
         Ok(variant.clone())
     }
@@ -211,14 +240,14 @@ pub struct RuleRef {
 }
 
 impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
     fn try_from(
         (parsed_rule_ref, parsed_grammar, rule_sigs): (
             &syntax::RuleRef,
             &ParsedGrammar,
             &SignatureMap,
         ),
-    ) -> fault::DynamicRes<Self> {
+    ) -> fault::SemanticRes<Self> {
         // First lookup the unabbreviated rule name. Make sure it refers to an
         // actual `RuleDecl`.
         let (_rule_decl, rule_name) =
@@ -233,7 +262,7 @@ impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
         // Next, verify that the `Argument`s being passed in are of the correct
         // arity.
         if sig.len() != parsed_rule_ref.args.len() {
-            return Err(fault::DynamicErr::WrongArityRuleReference {
+            return Err(fault::SemanticErr::WrongArityRuleReference {
                 rule_name: rule_name.to_string(),
                 call_site: parsed_rule_ref.to_string(),
                 expected_len: sig.len(),
@@ -247,7 +276,7 @@ impl TryFrom<(&syntax::RuleRef, &ParsedGrammar, &SignatureMap)> for RuleRef {
             .iter()
             .zip(sig)
             .map(|(arg, param_type)| (arg, param_type, parsed_rule_ref, parsed_grammar).try_into())
-            .collect::<fault::DynamicRes<_>>()?;
+            .collect::<fault::SemanticRes<_>>()?;
 
         Ok(RuleRef {
             rule: rule_name.clone(),
@@ -270,7 +299,7 @@ impl
         &ParsedGrammar,
     )> for Argument
 {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
     fn try_from(
         (arg, param_type, parsed_rule_ref, parsed_grammar): (
             &syntax::Argument,
@@ -278,7 +307,7 @@ impl
             &syntax::RuleRef,
             &ParsedGrammar,
         ),
-    ) -> Result<Self, Self::Error> {
+    ) -> fault::SemanticRes<Self> {
         let expected_data_decl = parsed_grammar
             .data_decls
             .iter()
@@ -291,8 +320,8 @@ impl
             syntax::Argument::Variant(abbr_variant) => {
                 match expected_data_decl.lookup_variant(abbr_variant) {
                     Ok(data_variant) => Ok(Argument::Variant(data_variant.clone())),
-                    Err(fault::DynamicErr::UnboundSymbol { symbol }) => {
-                        Err(fault::DynamicErr::UnknownDataVariantInRuleRef {
+                    Err(fault::SemanticErr::UnboundSymbol { symbol }) => {
+                        Err(fault::SemanticErr::UnknownDataVariantInRuleRef {
                             abbr_variant: symbol,
                             data_type_name: param_type.to_string(),
                             rule_ref: parsed_rule_ref.rule.to_string(),
@@ -324,12 +353,42 @@ pub struct DataVariable {
     pub number: IStr,
 }
 
+impl TryFrom<(&Stringification<syntax::DataVariable>, &ParsedGrammar)> for DataVariable {
+    type Error = fault::SemanticErr;
+
+    fn try_from(
+        (parsed_variable, parsed_grammar): (&Stringification<syntax::DataVariable>, &ParsedGrammar),
+    ) -> fault::SemanticRes<Self> {
+        let data_decl = parsed_grammar.data_decl_from_abbr_variable(parsed_variable.inner_ref())?;
+
+        // Since the user wants to stringify this variable, we must verify that
+        // ALL of the data variants can be stringified.
+        for (variant, stringification) in &data_decl.variants {
+            if stringification.is_empty() {
+                return Err(fault::SemanticErr::NoDataVariantStringification {
+                    use_case: fault::StringificationUseCase::Variable {
+                        parsed_name: parsed_variable.inner_ref().to_string(),
+                    },
+                    data_name: data_decl.name.to_string(),
+                    variant: variant.to_string(),
+                });
+            }
+        }
+
+        let syntax::DataVariable(_abbr_name, number) = parsed_variable.inner_ref();
+        Ok(DataVariable {
+            data_name: data_decl.name.clone(),
+            number: number.clone(),
+        })
+    }
+}
+
 impl TryFrom<(&syntax::DataVariable, &ParsedGrammar)> for DataVariable {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_variable, parsed_grammar): (&syntax::DataVariable, &ParsedGrammar),
-    ) -> fault::DynamicRes<Self> {
+    ) -> fault::SemanticRes<Self> {
         let data_decl = parsed_grammar.data_decl_from_abbr_variable(parsed_variable)?;
         let syntax::DataVariable(_name, number) = parsed_variable;
         Ok(DataVariable {
@@ -363,7 +422,7 @@ impl
         &ParsedGrammar,
     )> for RuleDecl
 {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_rule_decl, rule_name, rule_sig, rule_sigs, parsed_grammar): (
@@ -373,13 +432,13 @@ impl
             &SignatureMap,
             &ParsedGrammar,
         ),
-    ) -> Result<Self, Self::Error> {
+    ) -> fault::SemanticRes<Self> {
         // To translate a `RuleDecl`, just translate each of its `Case`s.
         let cases = parsed_rule_decl
             .cases
             .iter()
             .map(|case| (case, rule_name, rule_sig, rule_sigs, parsed_grammar).try_into())
-            .collect::<fault::DynamicRes<_>>()?;
+            .collect::<fault::SemanticRes<_>>()?;
 
         Ok(RuleDecl { cases })
     }
@@ -420,7 +479,7 @@ impl
         &ParsedGrammar,
     )> for Case
 {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_case, rule_name, rule_sig, rule_sigs, parsed_grammar): (
@@ -430,10 +489,10 @@ impl
             &SignatureMap,
             &ParsedGrammar,
         ),
-    ) -> Result<Self, Self::Error> {
+    ) -> fault::SemanticRes<Self> {
         // Check that the requirements have correct arity.
         if parsed_case.guard.requirements.len() != rule_sig.len() {
-            return Err(fault::DynamicErr::WrongArityCaseGuard {
+            return Err(fault::SemanticErr::WrongArityCaseGuard {
                 rule_name: rule_name.to_string(),
                 guard: parsed_case.guard.to_string(),
                 expected_len: rule_sig.len(),
@@ -449,14 +508,14 @@ impl
             .map(|(parsed_pattern, expected_type)| {
                 (parsed_pattern, rule_name, expected_type, parsed_grammar).try_into()
             })
-            .collect::<fault::DynamicRes<_>>()?;
+            .collect::<fault::SemanticRes<_>>()?;
 
         // Translate the sentential-form alternatives.
         let alternatives = parsed_case
             .alternatives
             .iter()
             .map(|alternative| (alternative, rule_sigs, parsed_grammar).try_into())
-            .collect::<fault::DynamicRes<_>>()?;
+            .collect::<fault::SemanticRes<_>>()?;
 
         Ok(Case {
             requirements,
@@ -472,7 +531,7 @@ pub enum Pattern {
 }
 
 impl TryFrom<(&syntax::Pattern, &RuleName, &DataName, &ParsedGrammar)> for Pattern {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (parsed_pattern, rule_name, expected_type, parsed_grammar): (
@@ -481,7 +540,7 @@ impl TryFrom<(&syntax::Pattern, &RuleName, &DataName, &ParsedGrammar)> for Patte
             &DataName,
             &ParsedGrammar,
         ),
-    ) -> Result<Self, Self::Error> {
+    ) -> fault::SemanticRes<Self> {
         match parsed_pattern {
             syntax::Pattern::Star => Ok(Pattern::Star),
 
@@ -509,7 +568,7 @@ impl TryFrom<(&syntax::Pattern, &RuleName, &DataName, &ParsedGrammar)> for Patte
                 let resolved_variable: DataVariable = (abbr_variable, parsed_grammar).try_into()?;
 
                 if &resolved_variable.data_name != expected_type {
-                    return Err(fault::DynamicErr::PatternMatchTypeError {
+                    return Err(fault::SemanticErr::PatternMatchTypeError {
                         rule_name: rule_name.to_string(),
                         expected_type: expected_type.to_string(),
                         variable_type: resolved_variable.data_name.to_string(),

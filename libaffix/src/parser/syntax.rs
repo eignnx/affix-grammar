@@ -1,4 +1,4 @@
-use crate::fault::{DynamicErr, DynamicRes};
+use crate::fault::{SemanticErr, SemanticRes};
 use im::Vector;
 use internship::IStr;
 use std::collections::BTreeMap;
@@ -14,20 +14,20 @@ impl ParsedGrammar {
     pub fn data_decl_from_abbr_data_name<'grammar>(
         &'grammar self,
         abbr_name: &Abbr<DataName>,
-    ) -> DynamicRes<&'grammar DataDecl> {
+    ) -> SemanticRes<&'grammar DataDecl> {
         let mut matches = self
             .data_decls
             .iter()
             .filter(|decl| decl.name.matches_abbreviation(abbr_name));
 
-        let first = matches.next().ok_or_else(|| DynamicErr::UnboundSymbol {
+        let first = matches.next().ok_or_else(|| SemanticErr::UnboundSymbol {
             symbol: abbr_name.to_string(),
         })?;
 
         if let Some(second) = matches.next() {
             let DataName(fst) = &first.name;
             let DataName(snd) = &second.name;
-            return Err(DynamicErr::AmbiguousSymbol {
+            return Err(SemanticErr::AmbiguousSymbol {
                 symbol: abbr_name.to_string(),
                 possibility1: fst.to_string(),
                 possibility2: snd.to_string(),
@@ -44,14 +44,14 @@ impl ParsedGrammar {
     pub fn data_decl_from_abbr_variable<'grammar>(
         &'grammar self,
         DataVariable(name, _num): &DataVariable,
-    ) -> DynamicRes<&'grammar DataDecl> {
+    ) -> SemanticRes<&'grammar DataDecl> {
         self.data_decl_from_abbr_data_name(name)
     }
 
     pub fn data_decl_from_abbr_variant<'grammar>(
         &'grammar self,
         variant: &Abbr<DataVariant>,
-    ) -> DynamicRes<(&'grammar DataDecl, &'grammar DataVariant)> {
+    ) -> SemanticRes<(&'grammar DataDecl, &'grammar DataVariant)> {
         // Search through all data declarations for variants that `val` is
         // an abbreviation of. Collect all those variants.
         // TODO: use the "type signature" of the rule to narrow this search.
@@ -72,7 +72,7 @@ impl ParsedGrammar {
         // symbol error.
         let first = canonicalizations
             .next()
-            .ok_or_else(|| DynamicErr::UnboundSymbol {
+            .ok_or_else(|| SemanticErr::UnboundSymbol {
                 symbol: variant.to_string(),
             })?;
 
@@ -80,7 +80,7 @@ impl ParsedGrammar {
         if let Some(second) = canonicalizations.next() {
             let (decl1, DataVariant(possibility1)) = first;
             let (decl2, DataVariant(possibility2)) = second;
-            return Err(DynamicErr::AmbiguousSymbol {
+            return Err(SemanticErr::AmbiguousSymbol {
                 symbol: variant.to_string(),
                 possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
                 possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
@@ -93,7 +93,7 @@ impl ParsedGrammar {
     pub fn rule_decl_from_abbr_rule_name<'grammar>(
         &'grammar self,
         abbr_name: &Abbr<RuleName>,
-    ) -> DynamicRes<(&'grammar RuleDecl, &'grammar RuleName)> {
+    ) -> SemanticRes<(&'grammar RuleDecl, &'grammar RuleName)> {
         let mut possibilities = self
             .rule_decls
             .iter()
@@ -101,14 +101,14 @@ impl ParsedGrammar {
 
         let first = possibilities
             .next()
-            .ok_or_else(|| DynamicErr::UnboundRuleName {
+            .ok_or_else(|| SemanticErr::UnboundRuleName {
                 rule_name: abbr_name.to_string(),
             })?;
 
         if let Some(second) = possibilities.next() {
             let possibility1 = first.signature.name.to_string();
             let possibility2 = second.signature.name.to_string();
-            return Err(DynamicErr::AmbiguousSymbol {
+            return Err(SemanticErr::AmbiguousSymbol {
                 symbol: abbr_name.to_string(),
                 possibility1,
                 possibility2,
@@ -134,13 +134,13 @@ impl DataDecl {
     ///     2. If more than one `DataVariant` in `self` matches the abbreviated
     ///        argument, then both matching `DataVariant`s will be returned as
     ///        a pair, i.e. like: `Err(Some((1st_match, 2nd_match)))`.
-    pub fn lookup_variant(&self, abbr_variant: &Abbr<DataVariant>) -> DynamicRes<&DataVariant> {
+    pub fn lookup_variant(&self, abbr_variant: &Abbr<DataVariant>) -> SemanticRes<&DataVariant> {
         let mut found: Option<&DataVariant> = None;
 
         for variant in self.variants.keys() {
             if abbreviates(abbr_variant, variant) {
                 if let Some(prev_match) = found {
-                    return Err(DynamicErr::AmbiguousSymbol {
+                    return Err(SemanticErr::AmbiguousSymbol {
                         symbol: abbr_variant.to_string(),
                         possibility1: prev_match.to_string(),
                         possibility2: variant.to_string(),
@@ -151,7 +151,7 @@ impl DataDecl {
             }
         }
 
-        found.ok_or(DynamicErr::UnboundSymbol {
+        found.ok_or(SemanticErr::UnboundSymbol {
             symbol: abbr_variant.to_string(),
         })
     }
@@ -253,8 +253,8 @@ pub type SententialForm = Vector<Token>;
 pub enum Token {
     RuleRef(RuleRef),
     StrLit(IStr),
-    DataVariable(DataVariable),
-    DataVariant(Abbr<DataVariant>),
+    DataVariable(Stringification<DataVariable>),
+    DataVariant(Stringification<Abbr<DataVariant>>),
     Plus,
 }
 
@@ -274,6 +274,21 @@ impl fmt::Display for RuleRef {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Stringification<T>(pub(crate) T);
+
+impl<T> Stringification<T> {
+    pub fn inner(self) -> T {
+        let Stringification(inner) = self;
+        inner
+    }
+
+    pub fn inner_ref(&self) -> &T {
+        let Stringification(inner) = self;
+        inner
     }
 }
 

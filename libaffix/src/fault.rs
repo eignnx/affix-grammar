@@ -1,32 +1,46 @@
-use crate::parser::typo;
+use std::fmt;
 use thiserror::Error;
 
-pub type StaticRes<'src, T = ()> = std::result::Result<T, StaticErr<'src>>;
 pub type DynamicRes<T = ()> = std::result::Result<T, DynamicErr>;
+pub type SemanticRes<T = ()> = std::result::Result<T, SemanticErr>;
 
 #[non_exhaustive]
 #[derive(Error, Debug, Serialize)]
-pub enum StaticErr<'src> {
-    #[error("Syntax Error:\n{0}")]
-    SyntaxErr(typo::ErrorSummary<'src>),
+pub enum DynamicErr {
+    #[error(
+        "Maximum iterations exceeded! This may indicate an unbounded recursive \
+        rule, or just that sentence complexity has increased beyond what was \
+        initially predicted. In the latter case, simply increase max trials \
+        from {trials} and try again."
+    )]
+    MaxTrialsExceeded { trials: usize },
 }
 
-impl<'src> From<typo::ErrorSummary<'src>> for StaticErr<'src> {
-    fn from(summary: typo::ErrorSummary<'src>) -> Self {
-        Self::SyntaxErr(summary)
-    }
-}
-
-impl<'src> From<StaticErr<'src>> for wasm_bindgen::JsValue {
-    fn from(err: StaticErr<'src>) -> wasm_bindgen::JsValue {
+impl From<DynamicErr> for wasm_bindgen::JsValue {
+    fn from(err: DynamicErr) -> wasm_bindgen::JsValue {
         let msg = "Failure to translate StaticErr into JsValue!";
         serde_wasm_bindgen::to_value(&err).expect(msg)
     }
 }
 
+#[derive(Debug, Serialize)]
+pub enum StringificationUseCase {
+    Variable { parsed_name: String },
+    Variant { parsed_name: String },
+}
+
+impl fmt::Display for StringificationUseCase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Variable { parsed_name } => write!(f, "the variable `{}`", parsed_name),
+            Self::Variant { parsed_name } => write!(f, "the variant `{}`", parsed_name),
+        }
+    }
+}
+
 #[non_exhaustive]
 #[derive(Error, Debug, Serialize)]
-pub enum DynamicErr {
+pub enum SemanticErr {
     #[error(
         "The cases for the rule `{rule_name}` are not exhaustive! For \
         instance, none of your cases would handle a rule invocation  like \
@@ -67,18 +81,15 @@ pub enum DynamicErr {
     },
 
     #[error(
-        "I don't know how to print the datavariant `@{symbol}` in a \
-        user-friendly way!"
+        "I don't know how to turn `{data_name}`'s data variant `@{variant}` \
+        into user-facing text! This needs to be specified because you're \
+        trying to @-print {use_case}."
     )]
-    NoDataVariantStringification { symbol: String },
-
-    #[error(
-        "Maximum iterations exceeded! This may indicate an unbounded recursive \
-        rule, or just that sentence complexity has increased beyond what was \
-        initially predicted. In the latter case, simply increase max trials \
-        from {trials} and try again."
-    )]
-    MaxTrialsExceeded { trials: usize },
+    NoDataVariantStringification {
+        use_case: StringificationUseCase,
+        data_name: String,
+        variant: String,
+    },
 
     #[error(
         "I got the wrong number of values sent to the rule `{rule_name}`! I \
@@ -160,8 +171,8 @@ impl std::fmt::Display for ArgMap {
     }
 }
 
-impl<'src> From<DynamicErr> for wasm_bindgen::JsValue {
-    fn from(err: DynamicErr) -> wasm_bindgen::JsValue {
+impl From<SemanticErr> for wasm_bindgen::JsValue {
+    fn from(err: SemanticErr) -> wasm_bindgen::JsValue {
         let msg = "Failure to translate DynamicErr into JsValue!";
         serde_wasm_bindgen::to_value(&err).expect(msg)
     }

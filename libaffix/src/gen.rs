@@ -1,4 +1,4 @@
-use crate::fault::{DynamicErr, DynamicRes};
+use crate::fault::{DynamicErr, DynamicRes, SemanticErr, SemanticRes};
 use crate::parser::syntax::{
     abbreviates, Abbr, Argument, Case, DataName, DataVariable, DataVariant, Guard, ParsedGrammar,
     Pattern, RuleDecl, RuleName, RuleRef, Token,
@@ -86,7 +86,7 @@ where
         rule_decl: &RuleDecl,
         arguments: &Vec<DataVariant>,
         state: &'st mut State,
-    ) -> DynamicRes<Case> {
+    ) -> SemanticRes<Case> {
         // Check each case one after another until an allowable case is found.
         for case in &rule_decl.cases {
             let param_typs = &rule_decl.signature.parameter_types;
@@ -104,7 +104,7 @@ where
         }
 
         // We are out of possibilities. This case must not have been handled in the case analysis.
-        Err(DynamicErr::InexhaustiveCaseAnalysis {
+        Err(SemanticErr::InexhaustiveCaseAnalysis {
             rule_name: rule_decl.signature.name.to_string(),
             arguments: arguments.iter().map(ToString::to_string).collect(),
         })
@@ -116,11 +116,11 @@ where
         _types: &Vec<Abbr<DataName>>,
         guard: &Guard,
         arguments: &Vec<DataVariant>,
-    ) -> DynamicRes<Option<State>> {
+    ) -> SemanticRes<Option<State>> {
         // TODO: add type checking here? When ready, use the currently-unused `_types` parameter.
         if guard.requirements.len() != arguments.len() {
             // let arguments = arguments.iter().map(|val| val.to_string()).collect();
-            return Err(DynamicErr::WrongArityRuleReference {
+            return Err(SemanticErr::WrongArityRuleReference {
                 rule_name: rule_name.to_string(),
                 call_site: format!("<unknown RuleName>.{:?}", arguments),
                 expected_len: guard.requirements.len(),
@@ -156,7 +156,7 @@ where
                         let (variant_decl, _variant) =
                             self.grammar.data_decl_from_abbr_variant(&arg)?;
 
-                        return Err(DynamicErr::PatternMatchTypeError {
+                        return Err(SemanticErr::PatternMatchTypeError {
                             rule_name: "<unknown RuleName>".into(),
                             variable_type: variant_decl.name.to_string(), // TODO: not so great, but temporary.
                             expected_type: variable_decl.name.to_string(), // TODO: not so great, but temporary.
@@ -185,7 +185,7 @@ where
         &self,
         var: &DataVariable,
         state: &'st mut State,
-    ) -> DynamicRes<&'st mut DataVariant> {
+    ) -> SemanticRes<&'st mut DataVariant> {
         Ok(state.entry(var.clone()).or_insert({
             let DataVariable(var_name, _number) = var;
 
@@ -202,7 +202,7 @@ where
             let more = iter.next();
 
             if let Some(more_name) = more {
-                return Err(DynamicErr::AmbiguousSymbol {
+                return Err(SemanticErr::AmbiguousSymbol {
                     symbol: var.to_string(),
                     possibility1: res.name.to_string(),
                     possibility2: more_name.name.to_string(),
@@ -221,7 +221,7 @@ where
         &'gen self,
         variant: &DataVariant,
         state: &mut State,
-    ) -> DynamicRes<Vector<OutToken>>
+    ) -> SemanticRes<Vector<OutToken>>
     where
         'buf: 'gen,
     {
@@ -232,24 +232,18 @@ where
             .iter()
             .filter(|decl| decl.variants.contains_key(&variant))
             .next()
-            .ok_or_else(|| DynamicErr::UnboundSymbol {
+            .ok_or_else(|| SemanticErr::UnboundSymbol {
                 symbol: variant.to_string(),
             })?;
 
         // Get the `DataDecl`s stringification alternatives for `variant`.
-        let alternatives = decl
-            .variants
-            .get(&variant)
-            .unwrap() // Can't panic because of previous `filter`.
-            .clone();
+        let alternatives = decl.variants[&variant].clone();
 
         // Choose one of the alternatives at random.
         let stringification = alternatives
             .iter()
             .choose(&mut *self.rng.borrow_mut())
-            .ok_or_else(|| DynamicErr::NoDataVariantStringification {
-                symbol: variant.to_string(),
-            })?;
+            .expect("stringification exists because this grammar has been checked.");
 
         // Generate a sentence based on that sentential form.
         self.generate_non_unique_from_sentence(stringification.clone(), state)
@@ -259,7 +253,7 @@ where
         &'gen self,
         start: Abbr<RuleName>,
         state: &mut State,
-    ) -> DynamicRes<Vector<OutToken>> {
+    ) -> SemanticRes<Vector<OutToken>> {
         let start_call = Token::RuleRef(RuleRef {
             rule: start,
             args: vec![],
@@ -272,7 +266,7 @@ where
         &'gen self,
         sentence: Vector<Token>,
         state: &mut State,
-    ) -> DynamicRes<Vector<OutToken>> {
+    ) -> SemanticRes<Vector<OutToken>> {
         let mut new_sentence: Vector<OutToken> = Default::default();
 
         // For each token, if it's a variable, it needs to be replaced.
@@ -281,13 +275,14 @@ where
                 Token::StrLit(sym) => new_sentence.push_back(sym.into()),
                 Token::Plus => new_sentence.push_back(OutToken::Plus),
                 Token::DataVariant(abbr_variant) => {
-                    let (_decl, variant) =
-                        self.grammar.data_decl_from_abbr_variant(&abbr_variant)?;
+                    let (_decl, variant) = self
+                        .grammar
+                        .data_decl_from_abbr_variant(abbr_variant.inner_ref())?;
                     let to_append = self.stringify_data_variant(variant, state)?;
                     new_sentence.append(to_append);
                 }
                 Token::DataVariable(ref variable) => {
-                    let variant = self.value_of_variable(variable, state)?.clone();
+                    let variant = self.value_of_variable(variable.inner_ref(), state)?.clone();
                     let to_append = self.stringify_data_variant(&variant, state)?;
                     new_sentence.append(to_append);
                 }
@@ -366,7 +361,11 @@ where
         let mut trials = 0;
         loop {
             let mut state = State::new();
-            let sentence = self.generate_non_unique_from_start(start.clone(), &mut state)?;
+
+            let sentence = self
+                .generate_non_unique_from_start(start.clone(), &mut state)
+                .expect("THERE SHOULD BE NO STATIC ERRORS AT RUNTIME!"); // TODO: remove all StaticRes's from this file.
+
             if !self.seen_sentences.contains(&sentence) {
                 self.seen_sentences.insert(sentence.clone());
                 let text = self.join_symbols(sentence.iter());

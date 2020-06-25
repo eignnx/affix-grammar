@@ -45,7 +45,7 @@ mod tests {
 
                         // Now run the exhaustiveness and usefullness checks.
                         let checked_snapshot_name = format!("CHECKED_SNAPSHOT__{}", filename);
-                        let checked_res: fault::DynamicRes<checked::CheckedGrammar> =
+                        let checked_res: fault::SemanticRes<checked::CheckedGrammar> =
                             (resolved_grammar, signatures).try_into();
 
                         match checked_res {

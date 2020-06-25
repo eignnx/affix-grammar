@@ -10,7 +10,7 @@ pub mod resolve;
 pub struct CheckedGrammar(pub(crate) ResolvedGrammar);
 
 impl TryFrom<(ResolvedGrammar, SignatureMap)> for CheckedGrammar {
-    type Error = fault::DynamicErr;
+    type Error = fault::SemanticErr;
 
     fn try_from(
         (resolved_grammar, rule_sigs): (ResolvedGrammar, SignatureMap),
@@ -45,7 +45,7 @@ fn check_exhaustiveness(
     rule_name: &RuleName,
     rule_decl: &RuleDecl,
     variant_matrix: Vec<Vec<&DataVariant>>,
-) -> fault::DynamicRes<()> {
+) -> fault::SemanticRes<()> {
     let mut useful_cases = vec![false; rule_decl.cases.len()];
 
     // For each tuple in the cartesian product...
@@ -60,7 +60,7 @@ fn check_exhaustiveness(
         }
 
         // If we have run through all the cases, the rule is in-exhaustive.
-        return Err(fault::DynamicErr::InexhaustiveCaseAnalysis {
+        return Err(fault::SemanticErr::InexhaustiveCaseAnalysis {
             rule_name: rule_name.to_string(),
             arguments: tuple.iter().map(ToString::to_string).collect(),
         });
@@ -69,7 +69,7 @@ fn check_exhaustiveness(
     // Finally, check to make sure all cases were useful.
     if let Some((unused_idx, _)) = useful_cases.iter().find_position(|&&x| !x) {
         let unused_case_number = unused_idx + 1;
-        Err(fault::DynamicErr::UnreacheableRuleCase {
+        Err(fault::SemanticErr::UnreacheableRuleCase {
             rule_name: rule_name.to_string(),
             unused_case_number,
         })

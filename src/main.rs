@@ -1,6 +1,8 @@
 mod cli;
-use libaffix::{fault::DynamicErr, gen::Generator, parser::syntax::ParsedGrammar};
-use std::convert::TryFrom;
+use libaffix::{
+    checked::CheckedGrammar, fault::DynamicErr, gen::Generator, parser::syntax::ParsedGrammar,
+};
+use std::convert::{TryFrom, TryInto};
 use std::fs;
 use std::io::{self, Write};
 use structopt::StructOpt;
@@ -20,8 +22,21 @@ fn ask<'buf>(question: impl AsRef<[u8]>, line: &'buf mut String) -> io::Result<&
 
 fn main() -> io::Result<()> {
     let cli_options = cli::Options::from_args();
-    let src = fs::read_to_string(&cli_options.grammar_file)?;
-    let grammar = ParsedGrammar::try_from(&src[..]).unwrap_or_else(|err| exit_with_error(err));
+
+    // Read in the grammar, then parse it, then deallocate the text buffer.
+    let grammar = {
+        let src = fs::read_to_string(&cli_options.grammar_file)?;
+        ParsedGrammar::try_from(&src[..]).unwrap_or_else(|err| exit_with_error(err))
+    };
+
+    let (resolved_grammar, signatures) = grammar
+        .clone()
+        .try_into()
+        .unwrap_or_else(|err| exit_with_error(err));
+
+    let _checked_grammar: CheckedGrammar = (resolved_grammar, signatures)
+        .try_into()
+        .unwrap_or_else(|err| exit_with_error(err));
 
     let mut generator = Generator::new(grammar);
 
