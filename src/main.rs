@@ -1,6 +1,10 @@
 mod cli;
 use libaffix::{
-    checked::CheckedGrammar, fault::DynamicErr, gen::Generator, parser::syntax::ParsedGrammar,
+    checked::CheckedGrammar,
+    checked::{Ctx, WithCtx},
+    fault::DynamicErr,
+    gen::Generator,
+    parser::syntax::ParsedGrammar,
 };
 use std::convert::{TryFrom, TryInto};
 use std::fs;
@@ -29,12 +33,16 @@ fn main() -> io::Result<()> {
         ParsedGrammar::try_from(&src[..]).unwrap_or_else(|err| exit_with_error(err))
     };
 
-    let (resolved_grammar, signatures) = grammar
+    let Ctx {
+        value: resolved_grammar,
+        ctx: signatures,
+    } = grammar
         .clone()
         .try_into()
         .unwrap_or_else(|err| exit_with_error(err));
 
-    let _checked_grammar: CheckedGrammar = (resolved_grammar, signatures)
+    let _checked_grammar: CheckedGrammar = resolved_grammar
+        .with_ctx(signatures)
         .try_into()
         .unwrap_or_else(|err| exit_with_error(err));
 

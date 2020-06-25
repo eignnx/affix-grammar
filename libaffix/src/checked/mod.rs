@@ -5,15 +5,34 @@ use std::convert::TryFrom;
 
 pub mod resolve;
 
+/// Represents a value `value` that carries along some context `ctx`.
+/// Use the `WithContext` trait's `.with_ctx(_)` method to create one of these.
+pub struct Ctx<T, C> {
+    pub value: T,
+    pub ctx: C,
+}
+
+pub trait WithCtx<C>: Sized {
+    /// Creates a `Ctx` from `self` and some supplied context `ctx`.
+    fn with_ctx(self, ctx: C) -> Ctx<Self, C> {
+        Ctx { value: self, ctx }
+    }
+}
+
+impl<T: Sized, C> WithCtx<C> for T {}
+
 /// This is a `ResolvedGrammar` whose `Cases` have all passed exhaustiveness
 /// checks.
 pub struct CheckedGrammar(pub(crate) ResolvedGrammar);
 
-impl TryFrom<(ResolvedGrammar, SignatureMap)> for CheckedGrammar {
+impl TryFrom<Ctx<ResolvedGrammar, SignatureMap>> for CheckedGrammar {
     type Error = fault::SemanticErr;
 
     fn try_from(
-        (resolved_grammar, rule_sigs): (ResolvedGrammar, SignatureMap),
+        Ctx {
+            value: resolved_grammar,
+            ctx: rule_sigs,
+        }: Ctx<ResolvedGrammar, SignatureMap>,
     ) -> Result<Self, Self::Error> {
         for (rule_name, rule_decl) in &resolved_grammar.rule_decls {
             let rule_sig = &rule_sigs[rule_name];

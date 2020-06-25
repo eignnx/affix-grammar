@@ -161,6 +161,12 @@ impl DataDecl {
 #[derive(Debug, Clone, PartialEq, Serialize, Eq, PartialOrd, Ord, Hash)]
 pub struct DataName(pub IStr);
 
+impl From<&str> for DataName {
+    fn from(name: &str) -> Self {
+        Self(IStr::new(name))
+    }
+}
+
 impl AsRef<str> for DataName {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
@@ -233,6 +239,12 @@ pub fn abbreviates(abbr: &Abbr<impl AsRef<str>>, src: impl AsRef<str>) -> bool {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct DataVariant(pub IStr);
 
+impl From<&str> for DataVariant {
+    fn from(name: &str) -> Self {
+        Self(IStr::new(name))
+    }
+}
+
 impl AsRef<str> for DataVariant {
     fn as_ref(&self) -> &str {
         self.0.as_ref()
@@ -296,10 +308,9 @@ impl<T> Stringification<T> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct DataVariable(pub Abbr<DataName>, pub IStr);
 
-impl AsRef<str> for DataVariable {
-    fn as_ref(&self) -> &str {
-        let Self(Abbr(name), _number) = self;
-        name.as_ref()
+impl From<(&str, &str)> for DataVariable {
+    fn from((name, number): (&str, &str)) -> Self {
+        Self(Abbr::new(name.into()), IStr::new(number))
     }
 }
 
@@ -342,6 +353,12 @@ pub struct RuleSig {
 /// The name of a rule.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct RuleName(pub IStr);
+
+impl From<&str> for RuleName {
+    fn from(name: &str) -> Self {
+        Self(IStr::new(name))
+    }
+}
 
 impl AsRef<str> for RuleName {
     fn as_ref(&self) -> &str {
