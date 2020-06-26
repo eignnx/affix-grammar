@@ -30,44 +30,53 @@ mod tests {
             let parse_res = parser::syntax::ParsedGrammar::try_from(&src_text[..]);
             let filename = path.file_stem().unwrap().to_string_lossy();
 
-            let parse_snapshot_name = format!("PARSE_SNAPSHOT__{}", filename,);
-            insta::assert_json_snapshot!(parse_snapshot_name, parse_res);
+            let panic_result = std::panic::catch_unwind(|| {
+                let parse_snapshot_name = format!("PARSE_SNAPSHOT__{}", filename,);
+                insta::assert_json_snapshot!(parse_snapshot_name, parse_res);
 
-            if let Some(parsed_grammar) = parse_res.ok() {
-                let resolve_snapshot_name = format!("RESOLVE_SNAPSHOT__{}", filename);
-                let resolve_res = parsed_grammar.clone().try_into();
+                if let Some(parsed_grammar) = parse_res.ok() {
+                    let resolve_snapshot_name = format!("RESOLVE_SNAPSHOT__{}", filename);
+                    let resolve_res = parsed_grammar.clone().try_into();
 
-                match resolve_res {
-                    Err(err) => {
-                        insta::assert_display_snapshot!(resolve_snapshot_name, err);
-                    }
-                    Ok(Ctx {
-                        value: resolved_grammar,
-                        ctx: signatures,
-                    }) => {
-                        insta::assert_display_snapshot!(resolve_snapshot_name, "✅");
+                    match resolve_res {
+                        Err(err) => {
+                            insta::assert_display_snapshot!(resolve_snapshot_name, err);
+                        }
+                        Ok(Ctx {
+                            value: resolved_grammar,
+                            ctx: signatures,
+                        }) => {
+                            insta::assert_display_snapshot!(resolve_snapshot_name, "✅");
 
-                        // Now run the exhaustiveness and usefullness checks.
-                        let checked_snapshot_name = format!("CHECKED_SNAPSHOT__{}", filename);
-                        let checked_res: fault::SemanticRes<checked::CheckedGrammar> =
-                            resolved_grammar.with_ctx(signatures).try_into();
+                            // Now run the exhaustiveness and usefullness checks.
+                            let checked_snapshot_name = format!("CHECKED_SNAPSHOT__{}", filename);
+                            let checked_res: fault::SemanticRes<checked::CheckedGrammar> =
+                                resolved_grammar.with_ctx(signatures).try_into();
 
-                        match checked_res {
-                            Err(err) => {
-                                insta::assert_display_snapshot!(checked_snapshot_name, err);
-                            }
-                            Ok(_checked_grammar) => {
-                                insta::assert_display_snapshot!(checked_snapshot_name, "✅");
+                            match checked_res {
+                                Err(err) => {
+                                    insta::assert_display_snapshot!(checked_snapshot_name, err);
+                                }
+                                Ok(_checked_grammar) => {
+                                    insta::assert_display_snapshot!(checked_snapshot_name, "✅");
 
-                                // No generate some sentences.
-                                let generator =
-                                    gen::Generator::new_seeded(parsed_grammar, RNG_SEED);
-                                let generated = generate_n(generator, MAX_VALUES);
-                                let gen_snapshot_name = format!("GEN_SNAPSHOT__{}", filename);
-                                insta::assert_json_snapshot!(gen_snapshot_name, generated);
+                                    // No generate some sentences.
+                                    let generator =
+                                        gen::Generator::new_seeded(parsed_grammar, RNG_SEED);
+                                    let generated = generate_n(generator, MAX_VALUES);
+                                    let gen_snapshot_name = format!("GEN_SNAPSHOT__{}", filename);
+                                    insta::assert_json_snapshot!(gen_snapshot_name, generated);
+                                }
                             }
                         }
                     }
+                }
+            });
+
+            match panic_result {
+                Ok(()) => {}
+                Err(_) => {
+                    eprintln!("Test of file {:?} panicked during execution!", filename);
                 }
             }
         }

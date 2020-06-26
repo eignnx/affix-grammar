@@ -1,0 +1,21 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Err": {
+    "title": "UNEXPECTED CHARACTER",
+    "msg": "I was expecting one of the following characters here: ['}']",
+    "loc": {
+      "line": "",
+      "line_no": 15,
+      "column_no": 1
+    },
+    "trace": [
+      "...while parsing a closing brace at line 15 column 1",
+      "...while parsing a rule definition at line 5 column 6",
+      "...while parsing a top-level definition at line 3 column 26",
+      "...while parsing the full grammar at line 1 column 1"
+    ]
+  }
+}

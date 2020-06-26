@@ -1,0 +1,22 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Err": {
+    "title": "INTERNAL PARSER ERROR",
+    "msg": "Sorry, I'm not sure what happened. I got this error: Verify",
+    "loc": {
+      "line": "rule data = \"this rule has an invalid name\"",
+      "line_no": 3,
+      "column_no": 6
+    },
+    "trace": [
+      "...while parsing a lowercase identifier at line 3 column 6",
+      "...while parsing a rule signature at line 3 column 6",
+      "...while parsing a rule definition at line 3 column 6",
+      "...while parsing a top-level definition at line 1 column 20",
+      "...while parsing the full grammar at line 1 column 1"
+    ]
+  }
+}
