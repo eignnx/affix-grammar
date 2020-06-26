@@ -5,4 +5,4 @@ rule start = they.Gender "walked to the store."
 rule they.Gender =
     .nb -> "they"
     .ntrl -> "it"
-    .Gender1 -> "they" "(" + @Gender1 + ")"
+    .Gender1 -> "they" "(" + @Gender1 + ")" -- Currently triggers error!

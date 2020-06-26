@@ -1,6 +1,6 @@
 use crate::fault;
 use itertools::Itertools;
-use resolve::{DataName, DataVariant, ResolvedGrammar, RuleDecl, RuleName, SignatureMap};
+use resolve::{DataVariant, ResolvedGrammar, RuleDecl, RuleName, SigMap};
 use std::convert::TryFrom;
 
 pub mod resolve;
@@ -8,14 +8,14 @@ pub mod resolve;
 /// Represents a value `value` that carries along some context `ctx`.
 /// Use the `WithContext` trait's `.with_ctx(_)` method to create one of these.
 pub struct Ctx<T, C> {
-    pub value: T,
+    pub val: T,
     pub ctx: C,
 }
 
 pub trait WithCtx<C>: Sized {
     /// Creates a `Ctx` from `self` and some supplied context `ctx`.
     fn with_ctx(self, ctx: C) -> Ctx<Self, C> {
-        Ctx { value: self, ctx }
+        Ctx { val: self, ctx }
     }
 }
 
@@ -25,18 +25,18 @@ impl<T: Sized, C> WithCtx<C> for T {}
 /// checks.
 pub struct CheckedGrammar(pub(crate) ResolvedGrammar);
 
-impl TryFrom<Ctx<ResolvedGrammar, SignatureMap>> for CheckedGrammar {
+impl TryFrom<Ctx<ResolvedGrammar, SigMap>> for CheckedGrammar {
     type Error = fault::SemanticErr;
 
     fn try_from(
         Ctx {
-            value: resolved_grammar,
+            val: resolved_grammar,
             ctx: rule_sigs,
-        }: Ctx<ResolvedGrammar, SignatureMap>,
+        }: Ctx<ResolvedGrammar, SigMap>,
     ) -> Result<Self, Self::Error> {
         for (rule_name, rule_decl) in &resolved_grammar.rule_decls {
             let rule_sig = &rule_sigs[rule_name];
-            let variant_matrix = variant_matrix_from_sig(&rule_sig, &resolved_grammar);
+            let variant_matrix = resolved_grammar.variant_matrix_from_sig(&rule_sig);
             check_exhaustiveness(rule_name, rule_decl, variant_matrix)?;
         }
 
@@ -44,27 +44,11 @@ impl TryFrom<Ctx<ResolvedGrammar, SignatureMap>> for CheckedGrammar {
     }
 }
 
-/// Create a matrix where each column contains all the `DataVariant`s of a
-/// given `DataDecl`. The columns correspond to the types of the parameters
-/// to the `RuleDecl`.
-fn variant_matrix_from_sig<'variants>(
-    rule_sig: &[DataName],
-    grammar: &'variants ResolvedGrammar,
-) -> Vec<Vec<&'variants DataVariant>> {
-    rule_sig
-        .iter()
-        .map(|param_type| {
-            let data_decl = &grammar.data_decls[param_type];
-            data_decl.variants.keys().collect()
-        })
-        .collect()
-}
-
 fn check_exhaustiveness(
     rule_name: &RuleName,
     rule_decl: &RuleDecl,
     variant_matrix: Vec<Vec<&DataVariant>>,
-) -> fault::SemanticRes<()> {
+) -> fault::SemanticRes {
     let mut useful_cases = vec![false; rule_decl.cases.len()];
 
     // For each tuple in the cartesian product...
@@ -97,54 +81,54 @@ fn check_exhaustiveness(
     }
 }
 
-#[test]
-fn test_exhaustiveness_and_usefullness() {
-    use internship::IStr;
-    use std::ops::Deref;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::syntax::ParsedGrammar;
+    use resolve::SigMap;
+    use std::convert::TryInto;
 
-    let row = |slice: &[&str]| -> Vec<DataVariant> {
-        slice
-            .into_iter()
-            .map(Deref::deref)
-            .map(IStr::new)
-            .map(DataVariant)
-            .collect()
-    };
+    fn parse_then_resolve(src: &str) -> fault::SemanticRes<Ctx<ResolvedGrammar, SigMap>> {
+        let parsed: ParsedGrammar = src.try_into().unwrap();
+        parsed.try_into()
+    }
 
-    let v = vec![row(&["a", "b", "c"]), row(&["1", "2", "3"])];
+    fn check_rule(
+        rule_name: impl Into<RuleName>,
+        grammar_ctx: Ctx<ResolvedGrammar, SigMap>,
+    ) -> fault::SemanticRes {
+        let Ctx {
+            val: grammar,
+            ctx: rule_sigs,
+        } = grammar_ctx;
+        let rule_name = rule_name.into();
+        let rule_decl = &grammar.rule_decls[&rule_name];
+        let rule_sig = &rule_sigs[&rule_name];
+        let variant_matrix = grammar.variant_matrix_from_sig(rule_sig);
+        check_exhaustiveness(&rule_name, rule_decl, variant_matrix)
+    }
 
-    let case = |requirements| resolve::Case {
-        requirements,
-        alternatives: vec![],
-    };
+    #[test]
+    fn test_exhaustiveness_and_usefullness() {
+        let grammar_ctx = parse_then_resolve(
+            r#"
+            data Abc = a | b | c
+            rule start = "X"
+            rule test_rule.Abc.Abc =
+                .a.a -> "X"
+                .a.b -> "X"
+                .*.* -> "X"
+                .a.c -> "X"
+            "#,
+        )
+        .unwrap();
 
-    use resolve::Pattern as P;
-    use resolve::{DataName, DataVariable};
-
-    let variant = |s: &str| P::Variant(DataVariant(IStr::new(s)));
-
-    #[allow(unused_variables)]
-    let variable = |s: &str| {
-        P::Variable(DataVariable {
-            data_name: DataName(IStr::new(s)),
-            number: IStr::new(""),
-        })
-    };
-
-    let rule_decl = resolve::RuleDecl {
-        cases: vec![
-            case(vec![variant("a"), variant("1")]),
-            case(vec![P::Star, variant("3")]),
-            case(vec![variant("b"), variant("1")]),
-            case(vec![P::Star, P::Star]),
-            case(vec![variant("b"), P::Star]),
-            case(vec![variant("a"), P::Star]),
-        ],
-    };
-
-    let matrix = v.iter().map(|row| row.iter().collect()).collect();
-
-    let rule_name = RuleName(IStr::new("test_rule"));
-    let res = check_exhaustiveness(&rule_name, &rule_decl, matrix);
-    dbg!(res);
+        assert!(matches!(
+            check_rule("test_rule", grammar_ctx),
+            Err(fault::SemanticErr::UnreacheableRuleCase {
+                unused_case_number: 4,
+                ..
+            })
+        ));
+    }
 }

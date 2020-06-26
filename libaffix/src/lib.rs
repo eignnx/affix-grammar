@@ -57,7 +57,7 @@ mod tests {
                         insta::assert_display_snapshot!(resolve_snapshot_name, err);
                     }
                     Ok(Ctx {
-                        value: resolved_grammar,
+                        val: resolved_grammar,
                         ctx: signatures,
                     }) => {
                         insta::assert_display_snapshot!(resolve_snapshot_name, "✅");
@@ -97,7 +97,6 @@ mod tests {
             match gen.generate() {
                 Ok(sentence) => sentences.push(sentence),
                 Err(fault::DynamicErr::MaxTrialsExceeded { .. }) => return Ok(sentences),
-                Err(e) => return Err(e),
             }
         }
         Ok(sentences)

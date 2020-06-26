@@ -1,5 +1,5 @@
 ---
 source: libaffix/src/lib.rs
-expression: "\"✅\""
+expression: err
 ---
-✅
+Ambiguous variable name `e`! Could refer to either `neuter` or `masculine`.

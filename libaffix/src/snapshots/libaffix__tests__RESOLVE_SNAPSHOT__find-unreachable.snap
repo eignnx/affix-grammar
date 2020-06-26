@@ -1,5 +1,5 @@
 ---
 source: libaffix/src/lib.rs
-expression: "\"✅\""
+expression: err
 ---
-✅
+I'm not sure what the symbol `dawg` refers to. Did you mistype?

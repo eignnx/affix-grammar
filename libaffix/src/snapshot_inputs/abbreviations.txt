@@ -12,6 +12,6 @@ rule they.Gender =
     .neuter -> "es"
 
 rule name.Gender =
-    .e -> "Hans"
+    .e -> "Hans" -- AMBIGUOUS!!!
     .feminine -> "Freida"
     .neuter -> "Jesse"

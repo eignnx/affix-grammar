@@ -1,5 +1,5 @@
 ---
 source: libaffix/src/lib.rs
-expression: "\"✅\""
+expression: err
 ---
-✅
+I don't know how to turn `GrammaticalGender`'s data variant `@nonbinary` into user-facing text! This needs to be specified because you're trying to @-print the variable `Gender1`.

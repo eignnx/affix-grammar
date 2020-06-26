@@ -34,7 +34,7 @@ fn main() -> io::Result<()> {
     };
 
     let Ctx {
-        value: resolved_grammar,
+        val: resolved_grammar,
         ctx: signatures,
     } = grammar
         .clone()

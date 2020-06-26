@@ -14,9 +14,28 @@ pub use crate::parser::syntax::{DataName, DataVariant, RuleName};
 /// A version of the grammar in which all of the identifiers have been verified
 /// as refering -- unambiguously -- to valid `DataDecl`s, `RuleDecl`s, or
 /// `DataVariant`s.
+#[derive(Debug)]
 pub struct ResolvedGrammar {
     pub data_decls: HashMap<DataName, DataDecl>,
     pub rule_decls: HashMap<RuleName, RuleDecl>,
+}
+
+impl ResolvedGrammar {
+    /// Create a matrix where each column contains all the `DataVariant`s of a
+    /// given `DataDecl`. The columns correspond to the types of the parameters
+    /// to the `RuleDecl`.
+    pub fn variant_matrix_from_sig<'variants>(
+        &'variants self,
+        rule_sig: &[DataName],
+    ) -> Vec<Vec<&'variants DataVariant>> {
+        rule_sig
+            .iter()
+            .map(|param_type| {
+                let data_decl = &self.data_decls[param_type];
+                data_decl.variants.keys().collect()
+            })
+            .collect()
+    }
 }
 
 impl Default for ResolvedGrammar {
@@ -29,12 +48,12 @@ impl Default for ResolvedGrammar {
 }
 
 /// The main translation impl from `syntax::ParsedGrammar` to `semantics::ResolvedGrammar`.
-impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
+impl TryFrom<ParsedGrammar> for ResolvedGrammar {
     type Error = fault::SemanticErr;
 
     fn try_from(parsed_grammar: ParsedGrammar) -> fault::SemanticRes<Self> {
         let Ctx {
-            value: resolved_grammar,
+            val: resolved_grammar,
             ctx: _signature_map,
         } = parsed_grammar.try_into()?;
         Ok(resolved_grammar)
@@ -42,7 +61,7 @@ impl std::convert::TryFrom<ParsedGrammar> for ResolvedGrammar {
 }
 
 /// This impl gives back a `SignatureMap` in addition to a `ResolvedGrammar`.
-impl std::convert::TryFrom<ParsedGrammar> for Ctx<ResolvedGrammar, SignatureMap> {
+impl TryFrom<ParsedGrammar> for Ctx<ResolvedGrammar, SigMap> {
     type Error = fault::SemanticErr;
 
     fn try_from(parsed_grammar: ParsedGrammar) -> fault::SemanticRes<Self> {
@@ -54,8 +73,23 @@ impl std::convert::TryFrom<ParsedGrammar> for Ctx<ResolvedGrammar, SignatureMap>
 
         validate_data_decls(&mut new_grammar, &parsed_grammar, &rule_sigs)?;
 
+        for rule_decl in &parsed_grammar.rule_decls {
+            let rule_name = &rule_decl.signature.name;
+            let rule_sig = &rule_sigs[rule_name];
+
+            // Do the `RuleDecl` translation.
+            let resolved_rule_decl = rule_decl
+                .with_ctx((rule_name, rule_sig, &rule_sigs, &parsed_grammar))
+                .try_into()?;
+
+            // Add the translation into the `ResolvedGrammar`.
+            new_grammar
+                .rule_decls
+                .insert(rule_decl.signature.name.clone(), resolved_rule_decl);
+        }
+
         Ok(Ctx {
-            value: new_grammar,
+            val: new_grammar,
             ctx: rule_sigs,
         })
     }
@@ -66,7 +100,7 @@ impl std::convert::TryFrom<ParsedGrammar> for Ctx<ResolvedGrammar, SignatureMap>
 fn validate_data_decls(
     new_grammar: &mut ResolvedGrammar,
     parsed_grammar: &ParsedGrammar,
-    rule_sigs: &SignatureMap,
+    rule_sigs: &SigMap,
 ) -> fault::SemanticRes {
     parsed_grammar
         .data_decls
@@ -92,13 +126,13 @@ fn validate_data_decls(
 }
 
 pub type RuleSig = Vec<DataName>;
-pub type SignatureMap = HashMap<RuleName, RuleSig>;
+pub type SigMap = HashMap<RuleName, RuleSig>;
 
 /// Returns a map of `RuleName`s and their corresponding signatures. It reads
 /// the signatures of all `syntax::RuleDecl`s in the `ParsedGrammar` and for
 /// each one, it does the lookup to verify that it's declared parameter types
 /// are unambiguous and refer to actual `DataDecl`s.
-fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::SemanticRes<SignatureMap> {
+fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::SemanticRes<SigMap> {
     parsed_grammar
         .rule_decls
         .iter()
@@ -119,18 +153,19 @@ fn validated_rule_signatures(parsed_grammar: &ParsedGrammar) -> fault::SemanticR
         .collect()
 }
 
+#[derive(Debug)]
 pub struct DataDecl {
     pub variants: HashMap<DataVariant, Vec<SententialForm>>,
 }
 
-impl TryFrom<Ctx<&syntax::DataDecl, (&SignatureMap, &ParsedGrammar)>> for DataDecl {
+impl TryFrom<Ctx<&syntax::DataDecl, (&SigMap, &ParsedGrammar)>> for DataDecl {
     type Error = fault::SemanticErr;
 
     fn try_from(
         Ctx {
-            value: parsed_data_decl,
+            val: parsed_data_decl,
             ctx: (rule_sigs, parsed_grammar),
-        }: Ctx<&syntax::DataDecl, (&SignatureMap, &ParsedGrammar)>,
+        }: Ctx<&syntax::DataDecl, (&SigMap, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
         let variants = parsed_data_decl
             .variants
@@ -153,16 +188,17 @@ impl TryFrom<Ctx<&syntax::DataDecl, (&SignatureMap, &ParsedGrammar)>> for DataDe
     }
 }
 
+#[derive(Debug)]
 pub struct SententialForm(Vec<Token>);
 
-impl TryFrom<Ctx<&syntax::SententialForm, (&SignatureMap, &ParsedGrammar)>> for SententialForm {
+impl TryFrom<Ctx<&syntax::SententialForm, (&SigMap, &ParsedGrammar)>> for SententialForm {
     type Error = fault::SemanticErr;
 
     fn try_from(
         Ctx {
-            value: parsed_sentential_form,
+            val: parsed_sentential_form,
             ctx: (rule_sigs, parsed_grammar),
-        }: Ctx<&syntax::SententialForm, (&SignatureMap, &ParsedGrammar)>,
+        }: Ctx<&syntax::SententialForm, (&SigMap, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
         let tokens = parsed_sentential_form
             .iter()
@@ -177,7 +213,7 @@ impl TryFrom<Ctx<&syntax::SententialForm, (&SignatureMap, &ParsedGrammar)>> for 
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Token {
     RuleRef(RuleRef),
     StrLit(IStr),
@@ -186,14 +222,14 @@ pub enum Token {
     Plus,
 }
 
-impl TryFrom<Ctx<&syntax::Token, (&ParsedGrammar, &SignatureMap)>> for Token {
+impl TryFrom<Ctx<&syntax::Token, (&ParsedGrammar, &SigMap)>> for Token {
     type Error = fault::SemanticErr;
 
     fn try_from(
         Ctx {
-            value: parsed_token,
+            val: parsed_token,
             ctx: (parsed_grammar, rule_sigs),
-        }: Ctx<&syntax::Token, (&ParsedGrammar, &SignatureMap)>,
+        }: Ctx<&syntax::Token, (&ParsedGrammar, &SigMap)>,
     ) -> fault::SemanticRes<Self> {
         match parsed_token {
             syntax::Token::Plus => Ok(Token::Plus),
@@ -221,7 +257,7 @@ impl TryFrom<Ctx<&Stringification<Abbr<DataVariant>>, &ParsedGrammar>> for DataV
 
     fn try_from(
         Ctx {
-            value: parsed_variant,
+            val: parsed_variant,
             ctx: parsed_grammar,
         }: Ctx<&Stringification<Abbr<DataVariant>>, &ParsedGrammar>,
     ) -> fault::SemanticRes<Self> {
@@ -248,7 +284,7 @@ impl TryFrom<Ctx<&Abbr<DataVariant>, &ParsedGrammar>> for DataVariant {
 
     fn try_from(
         Ctx {
-            value: parsed_variant,
+            val: parsed_variant,
             ctx: parsed_grammar,
         }: Ctx<&Abbr<DataVariant>, &ParsedGrammar>,
     ) -> fault::SemanticRes<Self> {
@@ -257,19 +293,19 @@ impl TryFrom<Ctx<&Abbr<DataVariant>, &ParsedGrammar>> for DataVariant {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RuleRef {
     pub rule: RuleName,
     pub args: Vec<Argument>,
 }
 
-impl TryFrom<Ctx<&syntax::RuleRef, (&ParsedGrammar, &SignatureMap)>> for RuleRef {
+impl TryFrom<Ctx<&syntax::RuleRef, (&ParsedGrammar, &SigMap)>> for RuleRef {
     type Error = fault::SemanticErr;
     fn try_from(
         Ctx {
-            value: parsed_rule_ref,
+            val: parsed_rule_ref,
             ctx: (parsed_grammar, rule_sigs),
-        }: Ctx<&syntax::RuleRef, (&ParsedGrammar, &SignatureMap)>,
+        }: Ctx<&syntax::RuleRef, (&ParsedGrammar, &SigMap)>,
     ) -> fault::SemanticRes<Self> {
         // First lookup the unabbreviated rule name. Make sure it refers to an
         // actual `RuleDecl`.
@@ -311,7 +347,7 @@ impl TryFrom<Ctx<&syntax::RuleRef, (&ParsedGrammar, &SignatureMap)>> for RuleRef
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Argument {
     Variant(DataVariant),
     Variable(DataVariable),
@@ -321,7 +357,7 @@ impl TryFrom<Ctx<&syntax::Argument, (&DataName, &syntax::RuleRef, &ParsedGrammar
     type Error = fault::SemanticErr;
     fn try_from(
         Ctx {
-            value: arg,
+            val: arg,
             ctx: (param_type, parsed_rule_ref, parsed_grammar),
         }: Ctx<&syntax::Argument, (&DataName, &syntax::RuleRef, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
@@ -364,7 +400,7 @@ impl TryFrom<Ctx<&syntax::Argument, (&DataName, &syntax::RuleRef, &ParsedGrammar
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DataVariable {
     pub data_name: DataName,
     pub number: IStr,
@@ -375,7 +411,7 @@ impl TryFrom<Ctx<&Stringification<syntax::DataVariable>, &ParsedGrammar>> for Da
 
     fn try_from(
         Ctx {
-            value: parsed_variable,
+            val: parsed_variable,
             ctx: parsed_grammar,
         }: Ctx<&Stringification<syntax::DataVariable>, &ParsedGrammar>,
     ) -> fault::SemanticRes<Self> {
@@ -408,7 +444,7 @@ impl TryFrom<Ctx<&syntax::DataVariable, &ParsedGrammar>> for DataVariable {
 
     fn try_from(
         Ctx {
-            value: parsed_variable,
+            val: parsed_variable,
             ctx: parsed_grammar,
         }: Ctx<&syntax::DataVariable, &ParsedGrammar>,
     ) -> fault::SemanticRes<Self> {
@@ -421,6 +457,7 @@ impl TryFrom<Ctx<&syntax::DataVariable, &ParsedGrammar>> for DataVariable {
     }
 }
 
+#[derive(Debug)]
 pub struct RuleDecl {
     pub cases: Vec<Case>,
 }
@@ -436,16 +473,14 @@ impl RuleDecl {
     }
 }
 
-impl TryFrom<Ctx<&syntax::RuleDecl, (&RuleName, &RuleSig, &SignatureMap, &ParsedGrammar)>>
-    for RuleDecl
-{
+impl TryFrom<Ctx<&syntax::RuleDecl, (&RuleName, &RuleSig, &SigMap, &ParsedGrammar)>> for RuleDecl {
     type Error = fault::SemanticErr;
 
     fn try_from(
         Ctx {
-            value: parsed_rule_decl,
+            val: parsed_rule_decl,
             ctx: (rule_name, rule_sig, rule_sigs, parsed_grammar),
-        }: Ctx<&syntax::RuleDecl, (&RuleName, &RuleSig, &SignatureMap, &ParsedGrammar)>,
+        }: Ctx<&syntax::RuleDecl, (&RuleName, &RuleSig, &SigMap, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
         // To translate a `RuleDecl`, just translate each of its `Case`s.
         let cases = parsed_rule_decl
@@ -461,6 +496,7 @@ impl TryFrom<Ctx<&syntax::RuleDecl, (&RuleName, &RuleSig, &SignatureMap, &Parsed
     }
 }
 
+#[derive(Debug)]
 pub struct Case {
     pub requirements: Vec<Pattern>,
     pub alternatives: Vec<SententialForm>,
@@ -487,14 +523,14 @@ impl Case {
     }
 }
 
-impl TryFrom<Ctx<&syntax::Case, (&RuleName, &RuleSig, &SignatureMap, &ParsedGrammar)>> for Case {
+impl TryFrom<Ctx<&syntax::Case, (&RuleName, &RuleSig, &SigMap, &ParsedGrammar)>> for Case {
     type Error = fault::SemanticErr;
 
     fn try_from(
         Ctx {
-            value: parsed_case,
+            val: parsed_case,
             ctx: (rule_name, rule_sig, rule_sigs, parsed_grammar),
-        }: Ctx<&syntax::Case, (&RuleName, &RuleSig, &SignatureMap, &ParsedGrammar)>,
+        }: Ctx<&syntax::Case, (&RuleName, &RuleSig, &SigMap, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
         // Check that the requirements have correct arity.
         if parsed_case.guard.requirements.len() != rule_sig.len() {
@@ -532,6 +568,7 @@ impl TryFrom<Ctx<&syntax::Case, (&RuleName, &RuleSig, &SignatureMap, &ParsedGram
     }
 }
 
+#[derive(Debug)]
 pub enum Pattern {
     Star,
     Variant(DataVariant),
@@ -543,7 +580,7 @@ impl TryFrom<Ctx<&syntax::Pattern, (&RuleName, &DataName, &ParsedGrammar)>> for 
 
     fn try_from(
         Ctx {
-            value: parsed_pattern,
+            val: parsed_pattern,
             ctx: (rule_name, expected_type, parsed_grammar),
         }: Ctx<&syntax::Pattern, (&RuleName, &DataName, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
