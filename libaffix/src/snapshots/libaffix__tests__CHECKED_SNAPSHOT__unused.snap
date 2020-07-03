@@ -1,0 +1,5 @@
+---
+source: libaffix/src/lib.rs
+expression: err
+---
+Case #7 in the rule `they` is unnecessary because it can never be reached. Just FYI.

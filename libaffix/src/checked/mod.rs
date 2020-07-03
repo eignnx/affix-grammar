@@ -49,6 +49,10 @@ fn check_exhaustiveness(
     rule_decl: &RuleDecl,
     variant_matrix: Vec<Vec<&DataVariant>>,
 ) -> fault::SemanticRes {
+    if rule_decl.arity() == 0 && rule_decl.cases.len() == 1 {
+        return Ok(());
+    }
+
     let mut useful_cases = vec![false; rule_decl.cases.len()];
 
     // For each tuple in the cartesian product...

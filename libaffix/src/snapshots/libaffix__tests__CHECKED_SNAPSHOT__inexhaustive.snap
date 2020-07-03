@@ -1,5 +1,5 @@
 ---
 source: libaffix/src/lib.rs
-expression: "\"✅\""
+expression: err
 ---
-✅
+The cases for the rule `they` are not exhaustive! For instance, none of your cases would handle a rule invocation  like `they.["singular", "3rd", "masculine"]`.
