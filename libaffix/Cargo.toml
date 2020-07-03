@@ -22,3 +22,4 @@ itertools = "0.9.0"
 
 [dev-dependencies]
 insta = { version = "0.16", features = ["glob"] }
+assert_matches = "1.3.0"

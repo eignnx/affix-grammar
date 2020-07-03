@@ -85,6 +85,7 @@ fn check_exhaustiveness(
 mod tests {
     use super::*;
     use crate::parser::syntax::ParsedGrammar;
+    use assert_matches::assert_matches;
     use resolve::SigMap;
     use std::convert::TryInto;
 
@@ -109,7 +110,7 @@ mod tests {
     }
 
     #[test]
-    fn test_exhaustiveness_and_usefullness() {
+    fn test_usefullness() {
         let grammar_ctx = parse_then_resolve(
             r#"
             data Abc = a | b | c
@@ -123,12 +124,46 @@ mod tests {
         )
         .unwrap();
 
-        assert!(matches!(
+        assert_matches!(
             check_rule("test_rule", grammar_ctx),
             Err(fault::SemanticErr::UnreacheableRuleCase {
+                rule_name,
                 unused_case_number: 4,
+            }) if &rule_name == "test_rule"
+        );
+    }
+
+    #[test]
+    fn test_exhaustiveness() {
+        let grammar_ctx = parse_then_resolve(
+            r#"
+            data Abc = a | b | c
+            rule start = "X"
+            rule test_rule.Abc.Abc =
+                .a.a -> "X"
+                .a.b -> "X"
+            "#,
+        )
+        .unwrap();
+
+        assert_matches!(
+            check_rule("test_rule", grammar_ctx),
+            Err(fault::SemanticErr::InexhaustiveCaseAnalysis {
+                rule_name,
                 ..
-            })
-        ));
+            }) if &rule_name == "test_rule"
+        );
+    }
+
+    #[test]
+    fn test_0_arity_rule_exhaustiveness_and_usefulness() {
+        let grammar_ctx = parse_then_resolve(
+            r#"
+            rule start = "X" | "Y" | "Z"
+            "#,
+        )
+        .unwrap();
+
+        assert_matches!(check_rule("start", grammar_ctx), Ok(_));
     }
 }
