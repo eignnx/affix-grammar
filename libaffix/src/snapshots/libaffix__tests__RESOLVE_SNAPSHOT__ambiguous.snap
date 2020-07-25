@@ -2,4 +2,4 @@
 source: libaffix/src/lib.rs
 expression: err
 ---
-Ambiguous variable name `Java`! Could refer to either `Java` or `JavaScript`.
+The symbol `J` is kinda ambiguous because it could refer to either `Java` or `JavaScript`. Would you mind choosing a more explicit abbreviation to differentiate the two? Thanks!

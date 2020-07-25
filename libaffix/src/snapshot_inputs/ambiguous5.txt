@@ -1,0 +1,4 @@
+rule man = "man"
+rule mangrove = "mangrove"
+
+rule start = man

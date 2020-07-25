@@ -71,8 +71,9 @@ pub enum SemanticErr {
     UnboundSymbol { symbol: String },
 
     #[error(
-        "Ambiguous variable name `{symbol}`! Could refer to either \
-        `{possibility1}` or `{possibility2}`."
+        "The symbol `{symbol}` is kinda ambiguous because it could refer to \
+        either `{possibility1}` or `{possibility2}`. Would you mind choosing a \
+        more explicit abbreviation to differentiate the two? Thanks!"
     )]
     AmbiguousSymbol {
         symbol: String,

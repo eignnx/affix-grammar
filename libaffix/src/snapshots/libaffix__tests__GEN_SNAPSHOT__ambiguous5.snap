@@ -1,0 +1,9 @@
+---
+source: libaffix/src/lib.rs
+expression: generated
+---
+{
+  "Ok": [
+    "man"
+  ]
+}

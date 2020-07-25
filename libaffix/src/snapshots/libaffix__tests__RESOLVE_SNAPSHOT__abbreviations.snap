@@ -2,4 +2,4 @@
 source: libaffix/src/lib.rs
 expression: err
 ---
-Ambiguous variable name `e`! Could refer to either `neuter` or `masculine`.
+The symbol `e` is kinda ambiguous because it could refer to either `Gender::neuter` or `Gender::masculine`. Would you mind choosing a more explicit abbreviation to differentiate the two? Thanks!

@@ -262,7 +262,7 @@ impl TryFrom<Ctx<&Stringification<Abbr<DataVariant>>, &ParsedGrammar>> for DataV
         }: Ctx<&Stringification<Abbr<DataVariant>>, &ParsedGrammar>,
     ) -> fault::SemanticRes<Self> {
         let (data_decl, variant) =
-            parsed_grammar.data_decl_from_abbr_variant(parsed_variant.inner_ref())?;
+            parsed_grammar.data_decl_from_untyped_abbr_variant(parsed_variant.inner_ref())?;
 
         // Check that a stringification for this variant has been defined.
         if data_decl.variants[variant].is_empty() {
@@ -288,7 +288,8 @@ impl TryFrom<Ctx<&Abbr<DataVariant>, &ParsedGrammar>> for DataVariant {
             ctx: parsed_grammar,
         }: Ctx<&Abbr<DataVariant>, &ParsedGrammar>,
     ) -> fault::SemanticRes<Self> {
-        let (_decl, variant) = parsed_grammar.data_decl_from_abbr_variant(parsed_variant)?;
+        let (_decl, variant) =
+            parsed_grammar.data_decl_from_untyped_abbr_variant(parsed_variant)?;
         Ok(variant.clone())
     }
 }
@@ -299,6 +300,7 @@ pub struct RuleRef {
     pub args: Vec<Argument>,
 }
 
+// TODO: "use data_variant_from_typed_abbr_variant in this RuleRef translation";
 impl TryFrom<Ctx<&syntax::RuleRef, (&ParsedGrammar, &SigMap)>> for RuleRef {
     type Error = fault::SemanticErr;
     fn try_from(

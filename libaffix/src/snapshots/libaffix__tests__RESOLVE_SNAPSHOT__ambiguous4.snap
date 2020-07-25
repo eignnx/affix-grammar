@@ -1,0 +1,5 @@
+---
+source: libaffix/src/lib.rs
+expression: err
+---
+The symbol `m` is kinda ambiguous because it could refer to either `man` or `mangrove`. Would you mind choosing a more explicit abbreviation to differentiate the two? Thanks!

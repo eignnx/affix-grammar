@@ -154,7 +154,7 @@ where
 
                         // Look up the `DataDecl` that DOES contain `arg`.
                         let (variant_decl, _variant) =
-                            self.grammar.data_decl_from_abbr_variant(&arg)?;
+                            self.grammar.data_decl_from_untyped_abbr_variant(&arg)?;
 
                         return Err(SemanticErr::PatternMatchTypeError {
                             rule_name: "<unknown RuleName>".into(),
@@ -167,7 +167,7 @@ where
                     // Set the value of `var` to `arg` in the soon-to-be-updated state.
                     let overwritten = state.insert(var.clone(), arg.clone());
                     if overwritten.is_some() {
-                        panic!("Shouldn't be overwriting variable bindings here.");
+                        panic!("{}", "Shouldn't be overwriting variable bindings here.");
                     }
                 }
             }
@@ -277,7 +277,7 @@ where
                 Token::DataVariant(abbr_variant) => {
                     let (_decl, variant) = self
                         .grammar
-                        .data_decl_from_abbr_variant(abbr_variant.inner_ref())?;
+                        .data_decl_from_untyped_abbr_variant(abbr_variant.inner_ref())?;
                     let to_append = self.stringify_data_variant(variant, state)?;
                     new_sentence.append(to_append);
                 }
@@ -300,7 +300,7 @@ where
                             // We need to canonicalize this name in case it is an abbreviation.
                             Argument::Variant(variant) => {
                                 let (_decl, variant) =
-                                    self.grammar.data_decl_from_abbr_variant(variant)?;
+                                    self.grammar.data_decl_from_untyped_abbr_variant(variant)?;
                                 arguments.push((*variant).clone())
                             }
                         }

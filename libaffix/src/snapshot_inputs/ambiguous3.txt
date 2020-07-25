@@ -1,0 +1,4 @@
+rule man = "man"
+rule woman = "woman"
+
+rule start = m

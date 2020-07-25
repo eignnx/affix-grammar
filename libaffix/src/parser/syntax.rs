@@ -11,30 +11,81 @@ pub struct ParsedGrammar {
 }
 
 impl ParsedGrammar {
+    /// Searches the grammar's `DataDecl`s for one that matches an abbreviated
+    /// `DataName`.
     pub fn data_decl_from_abbr_data_name<'grammar>(
         &'grammar self,
         abbr_name: &Abbr<DataName>,
     ) -> SemanticRes<&'grammar DataDecl> {
-        let mut matches = self
-            .data_decls
-            .iter()
-            .filter(|decl| decl.name.matches_abbreviation(abbr_name));
+        let abbr_name_ref = abbr_name.abbreviation_ref();
 
-        let first = matches.next().ok_or_else(|| SemanticErr::UnboundSymbol {
-            symbol: abbr_name.to_string(),
-        })?;
+        // First we need to check for identical matches. These should get
+        // priority. Like if the abbr is `java` and both `java` and `javascript`
+        // are possibilities, assume the user meant `java` not `javascript`
+        // cause that's what they wrote.
+        {
+            let mut identical_possibilities = self
+                .data_decls
+                .iter()
+                .filter(|&decl| abbr_name_ref == &decl.name);
 
-        if let Some(second) = matches.next() {
-            let DataName(fst) = &first.name;
-            let DataName(snd) = &second.name;
-            return Err(SemanticErr::AmbiguousSymbol {
-                symbol: abbr_name.to_string(),
-                possibility1: fst.to_string(),
-                possibility2: snd.to_string(),
-            });
+            if let Some(first) = identical_possibilities.next() {
+                if let Some(_second) = identical_possibilities.next() {
+                    return Err(SemanticErr::DuplicateDeclaration {
+                        decl_name: first.name.to_string(),
+                    });
+                } else {
+                    return Ok(first);
+                }
+            }
         }
 
-        Ok(first)
+        // If no **identical** possibilities are found, then search for
+        // unambiguous first letter abbreviations. For example:
+        // `disambiguate(m, {man, woman}) => Some(man)`
+        // `disambiguate(c, {cat, crustacean}) => None`
+        if abbr_name_ref.as_ref().chars().count() == 1 {
+            let mut same_first_letter = self.data_decls.iter().filter(|decl| {
+                let first_letter = |name: &str| name.chars().next().expect("no empty names");
+                first_letter(decl.name.as_ref()) == first_letter(abbr_name_ref.as_ref())
+            });
+
+            if let Some(first) = same_first_letter.next() {
+                if let Some(second) = same_first_letter.next() {
+                    return Err(SemanticErr::AmbiguousSymbol {
+                        symbol: abbr_name.to_string(),
+                        possibility1: first.name.to_string(),
+                        possibility2: second.name.to_string(),
+                    });
+                } else {
+                    return Ok(first);
+                }
+            }
+        }
+
+        // Otherwise, use the `abbreviates` function to find a match.
+        {
+            let mut matches = self
+                .data_decls
+                .iter()
+                .filter(|decl| decl.name.matches_abbreviation(abbr_name));
+
+            let first = matches.next().ok_or_else(|| SemanticErr::UnboundSymbol {
+                symbol: abbr_name.to_string(),
+            })?;
+
+            if let Some(second) = matches.next() {
+                let DataName(fst) = &first.name;
+                let DataName(snd) = &second.name;
+                return Err(SemanticErr::AmbiguousSymbol {
+                    symbol: abbr_name.to_string(),
+                    possibility1: fst.to_string(),
+                    possibility2: snd.to_string(),
+                });
+            }
+
+            Ok(first)
+        }
     }
 
     /// Given a `DataVariable`, this function will perform a lookup in the
@@ -48,14 +99,15 @@ impl ParsedGrammar {
         self.data_decl_from_abbr_data_name(name)
     }
 
-    pub fn data_decl_from_abbr_variant<'grammar>(
+    /// Searches through **all** data variant values in the grammar for a
+    /// matching `DataVariant`. Note: you probably don't wanna use this method.
+    pub fn data_decl_from_untyped_abbr_variant<'grammar>(
         &'grammar self,
         variant: &Abbr<DataVariant>,
     ) -> SemanticRes<(&'grammar DataDecl, &'grammar DataVariant)> {
-        // Search through all data declarations for variants that `val` is
-        // an abbreviation of. Collect all those variants.
-        // TODO: use the "type signature" of the rule to narrow this search.
-        let mut canonicalizations = self.data_decls.iter().flat_map(|decl| {
+        let abbr_name_ref = variant.abbreviation_ref();
+
+        let canonicalizations = self.data_decls.iter().flat_map(|decl| {
             decl.variants
                 .iter()
                 .filter_map(move |(other_variant, _reprs)| {
@@ -68,55 +120,158 @@ impl ParsedGrammar {
                 })
         });
 
-        // Take the first one, and if there are none, that's an unbound
-        // symbol error.
-        let first = canonicalizations
-            .next()
-            .ok_or_else(|| SemanticErr::UnboundSymbol {
+        // First we need to check for identical matches. These should get
+        // priority. Like if the abbr is `java` and both `java` and `javascript`
+        // are possibilities, assume the user meant `java` not `javascript`
+        // cause that's what they wrote.
+        {
+            let mut identical_possibilities = canonicalizations
+                .clone()
+                .filter(|(_decl, other_variant)| &abbr_name_ref == other_variant);
+
+            if let Some(first) = identical_possibilities.next() {
+                if let Some(second) = identical_possibilities.next() {
+                    let (decl1, DataVariant(possibility1)) = first;
+                    let (decl2, DataVariant(possibility2)) = second;
+                    return Err(SemanticErr::AmbiguousSymbol {
+                        symbol: variant.to_string(),
+                        possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
+                        possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
+                    });
+                } else {
+                    return Ok(first);
+                }
+            }
+        }
+
+        // If no **identical** possibilities are found, then search for
+        // unambiguous first letter abbreviations. For example:
+        // `disambiguate(m, {man, woman}) => Some(man)`
+        // `disambiguate(c, {cat, crustacean}) => None`
+        if abbr_name_ref.as_ref().chars().count() == 1 {
+            let mut same_first_letter =
+                canonicalizations.clone().filter(|(_decl, other_variant)| {
+                    let first_letter = |name: &str| name.chars().next().expect("no empty names");
+                    first_letter(other_variant.as_ref()) == first_letter(abbr_name_ref.as_ref())
+                });
+
+            if let Some(first) = same_first_letter.next() {
+                if let Some(second) = same_first_letter.next() {
+                    let (decl1, DataVariant(possibility1)) = first;
+                    let (decl2, DataVariant(possibility2)) = second;
+                    return Err(SemanticErr::AmbiguousSymbol {
+                        symbol: variant.to_string(),
+                        possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
+                        possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
+                    });
+                } else {
+                    return Ok(first);
+                }
+            }
+        }
+
+        // Otherwise, use the `abbreviates` function to find a match.
+        {
+            let mut matches = canonicalizations
+                .filter(|(_decl, other_variant)| abbreviates(variant, other_variant));
+
+            let first = matches.next().ok_or_else(|| SemanticErr::UnboundSymbol {
                 symbol: variant.to_string(),
             })?;
 
-        // If there's more than one possibility, that's an ambiguity.
-        if let Some(second) = canonicalizations.next() {
-            let (decl1, DataVariant(possibility1)) = first;
-            let (decl2, DataVariant(possibility2)) = second;
-            return Err(SemanticErr::AmbiguousSymbol {
-                symbol: variant.to_string(),
-                possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
-                possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
-            });
-        }
+            if let Some(second) = matches.next() {
+                let (decl1, DataVariant(possibility1)) = first;
+                let (decl2, DataVariant(possibility2)) = second;
+                return Err(SemanticErr::AmbiguousSymbol {
+                    symbol: variant.to_string(),
+                    possibility1: format!("{}::{}", decl1.name.as_ref(), possibility1),
+                    possibility2: format!("{}::{}", decl2.name.as_ref(), possibility2),
+                });
+            }
 
-        Ok(first)
+            Ok(first)
+        }
     }
 
     pub fn rule_decl_from_abbr_rule_name<'grammar>(
         &'grammar self,
         abbr_name: &Abbr<RuleName>,
     ) -> SemanticRes<(&'grammar RuleDecl, &'grammar RuleName)> {
-        let mut possibilities = self
-            .rule_decls
-            .iter()
-            .filter(|decl| abbreviates(abbr_name, &decl.signature.name));
+        // First we need to check for identical matches. These should get
+        // priority. Like if the abbr is `java` and both `java` and `javascript`
+        // are possibilities, assume the user meant `java` cause that's what
+        // they wrote.
+        {
+            let mut identical_possibilities = self
+                .rule_decls
+                .iter()
+                .filter(|decl| abbr_name.abbreviation_ref() == &decl.signature.name);
 
-        let first = possibilities
-            .next()
-            .ok_or_else(|| SemanticErr::UnboundRuleName {
-                rule_name: abbr_name.to_string(),
-            })?;
-
-        if let Some(second) = possibilities.next() {
-            let possibility1 = first.signature.name.to_string();
-            let possibility2 = second.signature.name.to_string();
-            return Err(SemanticErr::AmbiguousSymbol {
-                symbol: abbr_name.to_string(),
-                possibility1,
-                possibility2,
-            });
+            if let Some(first) = identical_possibilities.next() {
+                if let Some(_second) = identical_possibilities.next() {
+                    return Err(SemanticErr::DuplicateDeclaration {
+                        decl_name: first.signature.name.to_string(),
+                    });
+                } else {
+                    let rule_decl = first;
+                    return Ok((rule_decl, &rule_decl.signature.name));
+                }
+            }
         }
 
-        let rule_decl = first;
-        Ok((rule_decl, &rule_decl.signature.name))
+        // If no **identical** possibilities are found, then search for
+        // unambiguous first letter abbreviations. For example:
+        // `disambiguate(m, {man, woman}) => Some(man)`
+        // `disambiguate(c, {cat, crustacean}) => None`
+        if abbr_name.abbreviation_ref().as_ref().len() == 1 {
+            let first_letter = |name: &RuleName| -> char {
+                name.as_ref().chars().next().expect("no empty rule names")
+            };
+
+            let mut same_first_letter = self.rule_decls.iter().filter(|decl| {
+                first_letter(&decl.signature.name) == first_letter(abbr_name.abbreviation_ref())
+            });
+
+            if let Some(first) = same_first_letter.next() {
+                if let Some(second) = same_first_letter.next() {
+                    return Err(SemanticErr::AmbiguousSymbol {
+                        symbol: abbr_name.to_string(),
+                        possibility1: first.signature.name.to_string(),
+                        possibility2: second.signature.name.to_string(),
+                    });
+                } else {
+                    let rule_decl = first;
+                    return Ok((rule_decl, &rule_decl.signature.name));
+                }
+            }
+        }
+
+        // Otherwise, use the `abbreviates` fn to search for near matches.
+        {
+            let mut possibilities = self
+                .rule_decls
+                .iter()
+                .filter(|decl| abbreviates(abbr_name, &decl.signature.name));
+
+            let first = possibilities
+                .next()
+                .ok_or_else(|| SemanticErr::UnboundRuleName {
+                    rule_name: abbr_name.to_string(),
+                })?;
+
+            if let Some(second) = possibilities.next() {
+                let possibility1 = first.signature.name.to_string();
+                let possibility2 = second.signature.name.to_string();
+                return Err(SemanticErr::AmbiguousSymbol {
+                    symbol: abbr_name.to_string(),
+                    possibility1,
+                    possibility2,
+                });
+            }
+
+            let rule_decl = first;
+            Ok((rule_decl, &rule_decl.signature.name))
+        }
     }
 }
 
@@ -135,25 +290,100 @@ impl DataDecl {
     ///        argument, then both matching `DataVariant`s will be returned as
     ///        a pair, i.e. like: `Err(Some((1st_match, 2nd_match)))`.
     pub fn lookup_variant(&self, abbr_variant: &Abbr<DataVariant>) -> SemanticRes<&DataVariant> {
-        let mut found: Option<&DataVariant> = None;
+        // let mut found: Option<&DataVariant> = None;
 
-        for variant in self.variants.keys() {
-            if abbreviates(abbr_variant, variant) {
-                if let Some(prev_match) = found {
+        // for variant in self.variants.keys() {
+        //     if abbreviates(abbr_variant, variant) {
+        //         if let Some(prev_match) = found {
+        //             return Err(SemanticErr::AmbiguousSymbol {
+        //                 symbol: abbr_variant.to_string(),
+        //                 possibility1: format!("{}::{}", self.name, prev_match),
+        //                 possibility2: format!("{}::{}", self.name, variant),
+        //             });
+        //         } else {
+        //             found = Some(variant);
+        //         }
+        //     }
+        // }
+
+        // found.ok_or(SemanticErr::UnboundSymbol {
+        //     symbol: abbr_variant.to_string(),
+        // })
+        let abbr_name_ref = abbr_variant.abbreviation_ref();
+
+        // First we need to check for identical matches. These should get
+        // priority. Like if the abbr is `java` and both `java` and `javascript`
+        // are possibilities, assume the user meant `java` not `javascript`
+        // cause that's what they wrote.
+        {
+            let mut identical_possibilities = self
+                .variants
+                .keys()
+                .filter(|other_variant| &abbr_name_ref == other_variant);
+
+            if let Some(first) = identical_possibilities.next() {
+                if let Some(second) = identical_possibilities.next() {
+                    let DataVariant(possibility1) = first;
+                    let DataVariant(possibility2) = second;
                     return Err(SemanticErr::AmbiguousSymbol {
                         symbol: abbr_variant.to_string(),
-                        possibility1: prev_match.to_string(),
-                        possibility2: variant.to_string(),
+                        possibility1: format!("{}::{}", self.name.as_ref(), possibility1),
+                        possibility2: format!("{}::{}", self.name.as_ref(), possibility2),
                     });
                 } else {
-                    found = Some(variant);
+                    return Ok(first);
                 }
             }
         }
 
-        found.ok_or(SemanticErr::UnboundSymbol {
-            symbol: abbr_variant.to_string(),
-        })
+        // If no **identical** possibilities are found, then search for
+        // unambiguous first letter abbreviations. For example:
+        // `disambiguate(m, {man, woman}) => Some(man)`
+        // `disambiguate(c, {cat, crustacean}) => None`
+        if abbr_name_ref.as_ref().chars().count() == 1 {
+            let mut same_first_letter = self.variants.keys().filter(|other_variant| {
+                let first_letter = |name: &str| name.chars().next().expect("no empty names");
+                first_letter(other_variant.as_ref()) == first_letter(abbr_name_ref.as_ref())
+            });
+
+            if let Some(first) = same_first_letter.next() {
+                if let Some(second) = same_first_letter.next() {
+                    let DataVariant(possibility1) = first;
+                    let DataVariant(possibility2) = second;
+                    return Err(SemanticErr::AmbiguousSymbol {
+                        symbol: abbr_variant.to_string(),
+                        possibility1: format!("{}::{}", self.name.as_ref(), possibility1),
+                        possibility2: format!("{}::{}", self.name.as_ref(), possibility2),
+                    });
+                } else {
+                    return Ok(first);
+                }
+            }
+        }
+
+        // Otherwise, use the `abbreviates` function to find a match.
+        {
+            let mut matches = self
+                .variants
+                .keys()
+                .filter(|other_variant| abbreviates(abbr_variant, other_variant));
+
+            let first = matches.next().ok_or_else(|| SemanticErr::UnboundSymbol {
+                symbol: abbr_variant.to_string(),
+            })?;
+
+            if let Some(second) = matches.next() {
+                let DataVariant(possibility1) = first;
+                let DataVariant(possibility2) = second;
+                return Err(SemanticErr::AmbiguousSymbol {
+                    symbol: abbr_variant.to_string(),
+                    possibility1: format!("{}::{}", self.name.as_ref(), possibility1),
+                    possibility2: format!("{}::{}", self.name.as_ref(), possibility2),
+                });
+            }
+
+            Ok(first)
+        }
     }
 }
 
@@ -435,6 +665,11 @@ impl<T> Abbr<T> {
     }
 
     pub fn abbreviation(self) -> T {
+        let Self(x) = self;
+        x
+    }
+
+    pub fn abbreviation_ref(&self) -> &T {
         let Self(x) = self;
         x
     }
