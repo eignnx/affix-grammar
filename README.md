@@ -16,7 +16,7 @@ Generates sentences based on a grammar, but does not parse sentences.
 
 The top-level of the grammar is the `start` rule, and expansion will begin from `start`.
 
-When a rule is referenced (like `odd_or_even_pair` or `number.Bit1.Bit2`), if it has parameters, they must be passed in at time of call, separated by periods (`.`).
+When a rule is referenced (like `odd-or-even-pair` or `number[Bit1][Bit2]`), if it has parameters, they must be passed in at time of call, separated by periods (`.`).
 
 Variables can be suffixed with a number to make them unique. In this example, `Bit2` in the first call to the `number` will always to have the same value as `Bit2` in the second call to the `number` rule.
 
@@ -28,15 +28,15 @@ The effect of this example is to produce pairs of numbers that are either:
 ```haskell
 data Bit = 0 | 1
 
-rule start = odd_or_even_pair
+rule start = odd-or-even-pair
 
-rule odd_or_even_pair = number.Bit1.Bit2 number.Bit3.Bit2
+rule odd-or-even-pair = number[Bit1][Bit2] number[Bit3][Bit2]
 
-rule number.Bit.Bit =
-    .0.0 -> "zero (even)"
-    .0.1 -> "one (odd)"
-    .1.0 -> "two (even)"
-    .1.1 -> "three (odd)"
+rule number[Bit][Bit] =
+    [0][0] -> "zero (even)"
+    [0][1] -> "one (odd)"
+    [1][0] -> "two (even)"
+    [1][1] -> "three (odd)"
 ```
 
 The following sentences will be produced (not necessarily in this order):
@@ -59,54 +59,54 @@ data Number = singular | plural
 data Person = 1st | 2nd | 3rd
 data Gender = masculine | feminine | nonbinary | neutral
 
--- The expression `they.N.P.G` is a reference to a rule (kinda like a function
+-- The expression `they[N][P][G]` is a reference to a rule (kinda like a function
 -- call).
 -- The arguments N, P, and G are variables that are bound to values implicitly,
 -- for instance, N might be bound to the Number variant `plural`.
 -- N is an abbreviation for Number, P is some Person, G is Gender.
 -- The full names of the data types can be spelled out, but for brevity, the can
 -- be abbreviated as long as there is no ambiguity.
-rule start = they.N.P.G look.N.P.G "at" themself.N.P.G "in the mirror."
+rule start = they[N][P][G] look[N][P][G] "at" themself[N][P][G] "in the mirror."
 
 -- This is a rule that knows how to conjugate the present-tense verb "to look".
--- The `*` pattern matches any value.
-rule look.Number.Person.Gender =
-    .singular.3rd.nonbinary -> "look"
-    .singular.3rd.* -> "looks"
-    .*.*.* -> "look"
+-- The `?` pattern matches any value.
+rule look[Number][Person][Gender] =
+    [singular][3rd][nonbinary] -> "look"
+    [singular][3rd][?] -> "looks"
+    [?][?][?] -> "look"
 
-rule they.Number.Person.Gender =
-    .singular {
-        .1st.* -> "I"
-        .2nd.* -> "you"
-        .3rd {
-            .masculine -> "he"
-            .feminine -> "she"
-            .nonbinary -> "they"
-            .neutral -> "it"
+rule they[Number][Person][Gender] =
+    [singular] {
+        [1st][?] -> "I"
+        [2nd][?] -> "you"
+        [3rd] {
+            [masculine] -> "he"
+            [feminine] -> "she"
+            [nonbinary] -> "they"
+            [neutral] -> "it"
         }
     }
-    .plural {
-        .1st.* -> "we"
-        .2nd.* -> "y'all" | "you" -- Note: you can separate alternative values by a `|`.
-        .3rd.* -> "they"
+    [plural] {
+        [1st][?] -> "we"
+        [2nd][?] -> "y'all" | "you" -- Note: you can separate alternative values by a `|`.
+        [3rd][?] -> "they"
     }
 
-rule themself.Number.Person.Gender =
-    .singular {
-        .1st.* -> "myself"
-        .2nd.* -> "yourself"
-        .3rd {
-            .masculine -> "himself"
-            .feminine -> "herself"
-            .nonbinary -> "themself"
-            .neutral -> "itself"
+rule themself[Number][Person][Gender] =
+    [singular] {
+        [1st][?] -> "myself"
+        [2nd][?] -> "yourself"
+        [3rd] {
+            [masculine] -> "himself"
+            [feminine] -> "herself"
+            [nonbinary] -> "themself"
+            [neutral] -> "itself"
         }
     }
-    .plural {
-        .1st.* -> "ourselves"
-        .2nd.* -> "yourselves"
-        .3rd.* -> "themselves"
+    [plural] {
+        [1st][?] -> "ourselves"
+        [2nd][?] -> "yourselves"
+        [3rd][?] -> "themselves"
     }
 ```
 
