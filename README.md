@@ -30,26 +30,26 @@ data Bit = 0 | 1
 
 rule start = odd-or-even-pair
 
-rule odd-or-even-pair = number[Bit1][Bit2] number[Bit3][Bit2]
+rule odd-or-even-pair = "{" number[Bit1][Bit2] "} {" number[Bit3][Bit2] "}"
 
 rule number[Bit][Bit] =
-    [0][0] -> "zero (even)"
-    [0][1] -> "one (odd)"
-    [1][0] -> "two (even)"
-    [1][1] -> "three (odd)"
+    [0][0] -> "00, zero (even)"
+    [0][1] -> "01, one (odd)"
+    [1][0] -> "10, two (even)"
+    [1][1] -> "11, three (odd)"
 ```
 
 The following sentences will be produced (not necessarily in this order):
 
 ```
-"two (even) two (even)"
-"zero (even) zero (even)"
-"three (odd) three (odd)"
-"zero (even) two (even)"
-"one (odd) one (odd)"
-"three (odd) one (odd)"
-"two (even) zero (even)"
-"one (odd) three (odd)"
+"{ 10, two (even) } { 10, two (even) }"
+"{ 00, zero (even) } { 00, zero (even) }"
+"{ 11, three (odd) } { 11, three (odd) }"
+"{ 00, zero (even) } { 10, two (even) }"
+"{ 10, one (odd) } { 01, one (odd) }"
+"{ 11, three (odd) } { 01, one (odd) }"
+"{ 10, two (even) } { 00, zero (even) }"
+"{ 01, one (odd) } { 11, three (odd) }"
 ```
 
 ### Example Grammar 2
