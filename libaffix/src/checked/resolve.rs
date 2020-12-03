@@ -515,7 +515,7 @@ impl Case {
     ) -> bool {
         for (patt, arg) in self.requirements.iter().zip(args.into_iter()) {
             match patt {
-                Pattern::Star | Pattern::Variable(_) => continue,
+                Pattern::Wild | Pattern::Variable(_) => continue,
                 Pattern::Variant(variant) if variant == **arg => continue,
                 Pattern::Variant(_) => return false,
             }
@@ -572,7 +572,7 @@ impl TryFrom<Ctx<&syntax::Case, (&RuleName, &RuleSig, &SigMap, &ParsedGrammar)>>
 
 #[derive(Debug)]
 pub enum Pattern {
-    Star,
+    Wild,
     Variant(DataVariant),
     Variable(DataVariable),
 }
@@ -587,7 +587,7 @@ impl TryFrom<Ctx<&syntax::Pattern, (&RuleName, &DataName, &ParsedGrammar)>> for 
         }: Ctx<&syntax::Pattern, (&RuleName, &DataName, &ParsedGrammar)>,
     ) -> fault::SemanticRes<Self> {
         match parsed_pattern {
-            syntax::Pattern::Star => Ok(Pattern::Star),
+            syntax::Pattern::Wild => Ok(Pattern::Wild),
 
             // If it's a `Abbr<DataVariant>`, ensure it is a member of the
             // expected `DataDecl`'s variants list.

@@ -131,8 +131,8 @@ where
 
         for (req, arg) in guard.requirements.iter().zip(arguments.iter()) {
             match req {
-                Pattern::Star => {
-                    // Pattern::Star (`.*`) matches against any actual variant.
+                Pattern::Wild => {
+                    // Pattern::Wild (`.?`) matches against any actual variant.
                     continue;
                 }
                 Pattern::Variant(patt_variant) => {

@@ -122,7 +122,7 @@ mod tests {
             rule test-rule.Abc.Abc =
                 .a.a -> "X"
                 .a.b -> "X"
-                .*.* -> "X"
+                .?.? -> "X"
                 .a.c -> "X"
             "#,
         )

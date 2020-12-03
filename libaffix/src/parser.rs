@@ -169,11 +169,11 @@ fn argument(i: &str) -> Res<Argument> {
         map(lower_ident, |ident| {
             Argument::Variant(Abbr::new(DataVariant(ident)))
         }),
-        failure_case(char('*'), |_| {
+        failure_case(char('?'), |_| {
             Typo::Custom(
-                "USE OF '*' IN ARGUMENT POSITION",
+                "USE OF '?' IN ARGUMENT POSITION",
                 format!(
-                    "I'm not supposed to allow the '*' character here. Please \
+                    "I'm not supposed to allow the '?' character here. Please \
                     spell out a unique variable name if you'd like to pass a \
                     random value here."
                 ),
@@ -276,12 +276,12 @@ fn rule_sig(i: &str) -> Res<RuleSig> {
 }
 
 /// Any case-analysis pattern that can appear at the front of a case branch.
-/// Parses `ident` or `*`.
+/// Parses `ident` or `?`.
 fn pattern(i: &str) -> Res<Pattern> {
     context(
         "a pattern",
         alt((
-            map(char('*'), |_| Pattern::Star),
+            map(char('?'), |_| Pattern::Wild),
             map(lower_ident, |ident| {
                 Pattern::Variant(Abbr::new(DataVariant(ident)))
             }),
@@ -292,7 +292,7 @@ fn pattern(i: &str) -> Res<Pattern> {
 
 /// Parses:
 /// ```ignore
-/// .ident-1.*.ident-2.*.*.ident-n
+/// .ident-1.?.ident-2.?.?.ident-n
 /// ```
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn guard(i: &str) -> Res<Guard> {
@@ -328,7 +328,7 @@ fn guarded_sentential_form_alternatives<'i>(guard: Guard) -> impl Fn(&'i str) ->
 
 /// Parses:
 /// ```ignore
-/// .foo.bar.*.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
+/// .foo.bar.?.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Case> {
     move |i: &'i str| {
@@ -363,11 +363,11 @@ fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, 
 
 /// Parses either:
 /// ```ignore
-/// .foo.bar.*.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
+/// .foo.bar.?.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 /// or:
 /// ```ignore
-/// .foo.bar.*.baz { rule-case-1 rule-case-2 rule-case-n }
+/// .foo.bar.?.baz { rule-case-1 rule-case-2 rule-case-n }
 /// ```
 fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {

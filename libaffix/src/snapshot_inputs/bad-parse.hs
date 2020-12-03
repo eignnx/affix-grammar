@@ -9,6 +9,6 @@ rule asdf.Abc.Abc =
         .c -> "asdf"
     }
     .b {
-        .* -> "uh-oh"
+        .? -> "uh-oh"
     -- }
-    .c.* -> "poiu"
+    .c.? -> "poiu"

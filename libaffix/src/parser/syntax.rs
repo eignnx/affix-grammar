@@ -641,7 +641,7 @@ impl Guard {
 /// Can appear in a case-analysis in the body of a rule.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Pattern {
-    Star,
+    Wild,
     Variant(Abbr<DataVariant>),
     Variable(DataVariable),
 }
@@ -649,7 +649,7 @@ pub enum Pattern {
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pattern::Star => write!(f, "*"),
+            Pattern::Wild => write!(f, "*"),
             Pattern::Variant(v) => write!(f, "{}", v),
             Pattern::Variable(v) => write!(f, "{}", v),
         }

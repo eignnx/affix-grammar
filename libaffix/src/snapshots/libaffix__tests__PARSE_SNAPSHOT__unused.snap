@@ -95,7 +95,7 @@ expression: parse_res
                 {
                   "Variant": "1st"
                 },
-                "Star"
+                "Wild"
               ]
             },
             "alternatives": [
@@ -115,7 +115,7 @@ expression: parse_res
                 {
                   "Variant": "2nd"
                 },
-                "Star"
+                "Wild"
               ]
             },
             "alternatives": [
@@ -201,7 +201,7 @@ expression: parse_res
                 {
                   "Variant": "3rd"
                 },
-                "Star"
+                "Wild"
               ]
             },
             "alternatives": [
@@ -243,7 +243,7 @@ expression: parse_res
                 {
                   "Variant": "1st"
                 },
-                "Star"
+                "Wild"
               ]
             },
             "alternatives": [
@@ -303,7 +303,7 @@ expression: parse_res
                 {
                   "Variant": "2nd"
                 },
-                "Star"
+                "Wild"
               ]
             },
             "alternatives": [
@@ -328,7 +328,7 @@ expression: parse_res
                 {
                   "Variant": "3rd"
                 },
-                "Star"
+                "Wild"
               ]
             },
             "alternatives": [
