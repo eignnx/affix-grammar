@@ -14,7 +14,7 @@ expression: parse_res
     "trace": [
       "...while parsing a closing brace at line 15 column 1",
       "...while parsing a rule definition at line 5 column 6",
-      "...while parsing a top-level definition at line 3 column 26",
+      "...while parsing a top-level definition at line 3 column 28",
       "...while parsing the full grammar at line 1 column 1"
     ]
   }

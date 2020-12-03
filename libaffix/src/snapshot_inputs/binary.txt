@@ -2,10 +2,10 @@ data Bit = 0 | 1
 
 rule start = odd-or-even-pair
 
-rule odd-or-even-pair = number.Bit1.Bit2 number.Bit3.Bit2
+rule odd-or-even-pair = number[Bit1][Bit2] number[Bit3][Bit2]
 
-rule number.Bit.Bit =
-    .0.0 -> "zero (even)"
-    .0.1 -> "one (odd)"
-    .1.0 -> "two (even)"
-    .1.1 -> "three (odd)"
+rule number[Bit][Bit] =
+    [0][0] -> "zero (even)"
+    [0][1] -> "one (odd)"
+    [1][0] -> "two (even)"
+    [1][1] -> "three (odd)"

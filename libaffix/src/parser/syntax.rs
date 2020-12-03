@@ -512,7 +512,7 @@ impl fmt::Display for RuleRef {
         write!(f, "{}", self.rule)?;
 
         for arg in &self.args {
-            write!(f, ".{}", arg)?;
+            write!(f, "[{}]", arg)?;
         }
 
         Ok(())
@@ -617,13 +617,8 @@ pub struct Guard {
 
 impl fmt::Display for Guard {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut reqs = self.requirements.iter();
-
-        if let Some(first) = reqs.next() {
-            write!(f, "{}", first)?;
-            for pattern in reqs {
-                write!(f, ".{}", pattern)?;
-            }
+        for pattern in &self.requirements {
+            write!(f, "[{}]", pattern)?;
         }
 
         Ok(())
@@ -649,7 +644,7 @@ pub enum Pattern {
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pattern::Wild => write!(f, "*"),
+            Pattern::Wild => write!(f, "?"),
             Pattern::Variant(v) => write!(f, "{}", v),
             Pattern::Variable(v) => write!(f, "{}", v),
         }

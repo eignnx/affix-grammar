@@ -1,10 +1,10 @@
 data Java = a
 data JavaScript = b
 
-rule start = foo.J1 bar.J2 + "!"
+rule start = foo[J1] bar[J2] + "!"
 
-rule foo.JavaScript =
-    .a -> "a"
+rule foo[JavaScript] =
+    [a] -> "a"
 
-rule bar.Java =
-    .b -> "b"
+rule bar[Java] =
+    [b] -> "b"

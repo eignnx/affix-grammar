@@ -161,8 +161,8 @@ fn parse_data_decl() {
     assert_eq!(parsed, decl);
 }
 
-/// Arguments passed to a rule ref (call) like: `start.G1.N2` or
-/// `story.short.to-the-point`.
+/// Arguments passed to a rule ref (call) like: `start[G1][N2]` or
+/// `story[short][to-the-point]`.
 fn argument(i: &str) -> Res<Argument> {
     alt((
         map(variable, Argument::Variable),
@@ -182,11 +182,10 @@ fn argument(i: &str) -> Res<Argument> {
     ))(i)
 }
 
-/// Parsed a reference to a rule like: `start.G1.present-tense` or `story`.
-/// Note: spaces are **not** allowed adjacent to the dots (`.`).
+/// Parsed a reference to a rule like: `start[G1][present-tense]` or `story`.
 fn rule_ref(i: &str) -> Res<RuleRef> {
     let (i, name) = lower_ident(i)?;
-    let (i, args) = many0(preceded(char('.'), argument))(i)?;
+    let (i, args) = many0(delimited(char('['), argument, char(']')))(i)?;
     let reference = RuleRef {
         rule: Abbr::new(RuleName(name)),
         args,
@@ -252,17 +251,17 @@ fn sentential_form(i: &str) -> Res<SententialForm> {
     Ok((i, Vector::from(vec)))
 }
 
-/// Parses the (type) signature a rule like: `start.Gender.Number` or `story`.
+/// Parses the (type) signature a rule like: `start[Gender][Number]` or `story`.
 /// Appears at the start of a rule definition.
-/// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn rule_sig(i: &str) -> Res<RuleSig> {
     let (i, (name, vars)) = context(
         "a rule signature",
         tuple((
             lower_ident,
-            many0(preceded(
-                char('.'),
+            many0(delimited(
+                char('['),
                 map(upper_ident, |ident| Abbr::new(DataName(ident))),
+                char(']'),
             )),
         )),
     )(i)?;
@@ -292,11 +291,10 @@ fn pattern(i: &str) -> Res<Pattern> {
 
 /// Parses:
 /// ```ignore
-/// .ident-1.?.ident-2.?.?.ident-n
+/// [ident-1][?][ident-2][ident-n]
 /// ```
-/// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn guard(i: &str) -> Res<Guard> {
-    let (i, requirements) = many1(preceded(char('.'), pattern))(i)?;
+    let (i, requirements) = many1(delimited(char('['), pattern, char(']')))(i)?;
     let guard = Guard {
         requirements: requirements.into(),
     };
@@ -328,7 +326,7 @@ fn guarded_sentential_form_alternatives<'i>(guard: Guard) -> impl Fn(&'i str) ->
 
 /// Parses:
 /// ```ignore
-/// .foo.bar.?.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
+/// [foo][bar][?][baz] -> sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Case> {
     move |i: &'i str| {
@@ -342,7 +340,7 @@ fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, C
 
 /// Parses:
 /// ```ignore
-/// .foo.bar.baz { rule-case-1 rule-case-2 rule-case-n }
+/// [foo][bar][baz] { rule-case-1 rule-case-2 rule-case-n }
 /// ```
 fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
@@ -363,11 +361,11 @@ fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, 
 
 /// Parses either:
 /// ```ignore
-/// .foo.bar.?.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
+/// [foo][bar][?][baz] -> sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 /// or:
 /// ```ignore
-/// .foo.bar.?.baz { rule-case-1 rule-case-2 rule-case-n }
+/// [foo][bar][?][baz] { rule-case-1 rule-case-2 rule-case-n }
 /// ```
 fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
@@ -394,8 +392,8 @@ fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<C
 /// - a list of sentential-form alternatives like:
 ///     - `"Once upon a time..." rest-of-story + "." | "The end."`
 /// - or a guarded rule case like:
-///     - `.foo.bar -> some-sentential-form`, or
-///     - `.foo { nested-rule-cases }`
+///     - `[foo][bar] -> some-sentential-form`, or
+///     - `[foo] { nested-rule-cases }`
 fn top_level_rule_cases<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
@@ -418,7 +416,9 @@ fn top_level_rule_cases<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Cas
 
 /// Parses a rule which looks like:
 /// ```ignore
-/// rule foo.Bar.Baz = <rule body here>
+/// rule foo[Bar][Baz] = <rule body here>
+/// -- or
+/// rule start = <rule body here>
 /// ```
 fn rule_decl(i: &str) -> Res<RuleDecl> {
     let (i, (signature, cases)) = preceded(
@@ -592,18 +592,18 @@ fn parse_full_grammar() {
 data Number = singular | plural
 data Person = 1st | 2nd | 3rd -- This is a comment.
 
-rule start = "I" want.singular.1st "YOU!"
+rule start = "I" want[singular][1st] "YOU!"
 
-rule want.Number.Person =
-    .singular {
-        .1st -> "veux"
-        .2nd -> "veux"
-        .3rd -> "veut"
+rule want[Number][Person] =
+    [singular] {
+        [1st] -> "veux"
+        [2nd] -> "veux"
+        [3rd] -> "veut"
     }
-    .plural {
-        .1st -> "voulons"
-        .2nd -> "voulez"
-        .3rd -> "voulent"
+    [plural] {
+        [1st] -> "voulons"
+        [2nd] -> "voulez"
+        [3rd] -> "voulent"
     }
     --comment at veeerry end"#;
 

@@ -119,11 +119,11 @@ mod tests {
             r#"
             data Abc = a | b | c
             rule start = "X"
-            rule test-rule.Abc.Abc =
-                .a.a -> "X"
-                .a.b -> "X"
-                .?.? -> "X"
-                .a.c -> "X"
+            rule test-rule[Abc][Abc] =
+                [a][a] -> "X"
+                [a][b] -> "X"
+                [?][?] -> "X"
+                [a][c] -> "X"
             "#,
         )
         .unwrap();
@@ -143,9 +143,9 @@ mod tests {
             r#"
             data Abc = a | b | c
             rule start = "X"
-            rule test-rule.Abc.Abc =
-                .a.a -> "X"
-                .a.b -> "X"
+            rule test-rule[Abc][Abc] =
+                [a][a] -> "X"
+                [a][b] -> "X"
             "#,
         )
         .unwrap();

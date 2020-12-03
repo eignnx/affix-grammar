@@ -7,11 +7,11 @@ data Subject
 rule start = english-sentence
 
 rule english-sentence
-    = "the" subject.S "eats" object + "."
-    | "the" subject.S "hits" object "with a bat."
-    | "the" subject.S "stumbles upon" object when + "."
-    | "look at that" subject.S1 "go. go" subject.S1 + ", go."
-    | "the" subject.S "began setting" object "on fire."
+    = "the" subject[S] "eats" object + "."
+    | "the" subject[S] "hits" object "with a bat."
+    | "the" subject[S] "stumbles upon" object when + "."
+    | "look at that" subject[S1] "go. go" subject[S1] + ", go."
+    | "the" subject[S] "began setting" object "on fire."
     | english-sentence connective + "," english-sentence
     
 rule when
@@ -22,17 +22,17 @@ rule when
     | "under the cover of darkness"
     | "at the corner store"
 
-rule subject.Subject =
-    .dog -> "dog"
-    .cow -> "cow"
-    .hedgehog -> "hedgehog"
-    .marmot -> "marmot"
+rule subject[Subject] =
+    [dog] -> "dog"
+    [cow] -> "cow"
+    [hedgehog] -> "hedgehog"
+    [marmot] -> "marmot"
 
 rule object
     = "the chair"
     | "the couch"
-    | "the" subject.S + "'s lunch"
-    | "an extremely loud" subject.S
+    | "the" subject[S] + "'s lunch"
+    | "an extremely loud" subject[S]
     | "an obscene amount of" uncountable-thing
     | "a steaming pile of" uncountable-thing
     | "a lifetime supply of" uncountable-thing
