@@ -30,7 +30,7 @@ expression: parse_res
               [
                 {
                   "RuleRef": {
-                    "rule": "english_sentence",
+                    "rule": "english-sentence",
                     "args": []
                   }
                 }
@@ -41,7 +41,7 @@ expression: parse_res
       },
       {
         "signature": {
-          "name": "english_sentence",
+          "name": "english-sentence",
           "parameter_types": []
         },
         "cases": [
@@ -219,7 +219,7 @@ expression: parse_res
               [
                 {
                   "RuleRef": {
-                    "rule": "english_sentence",
+                    "rule": "english-sentence",
                     "args": []
                   }
                 },
@@ -235,7 +235,7 @@ expression: parse_res
                 },
                 {
                   "RuleRef": {
-                    "rule": "english_sentence",
+                    "rule": "english-sentence",
                     "args": []
                   }
                 }
@@ -430,7 +430,7 @@ expression: parse_res
                 },
                 {
                   "RuleRef": {
-                    "rule": "uncountable_thing",
+                    "rule": "uncountable-thing",
                     "args": []
                   }
                 }
@@ -441,7 +441,7 @@ expression: parse_res
                 },
                 {
                   "RuleRef": {
-                    "rule": "uncountable_thing",
+                    "rule": "uncountable-thing",
                     "args": []
                   }
                 }
@@ -452,7 +452,7 @@ expression: parse_res
                 },
                 {
                   "RuleRef": {
-                    "rule": "uncountable_thing",
+                    "rule": "uncountable-thing",
                     "args": []
                   }
                 }
@@ -463,7 +463,7 @@ expression: parse_res
       },
       {
         "signature": {
-          "name": "uncountable_thing",
+          "name": "uncountable-thing",
           "parameter_types": []
         },
         "cases": [

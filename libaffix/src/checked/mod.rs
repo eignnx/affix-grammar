@@ -119,7 +119,7 @@ mod tests {
             r#"
             data Abc = a | b | c
             rule start = "X"
-            rule test_rule.Abc.Abc =
+            rule test-rule.Abc.Abc =
                 .a.a -> "X"
                 .a.b -> "X"
                 .*.* -> "X"
@@ -129,11 +129,11 @@ mod tests {
         .unwrap();
 
         assert_matches!(
-            check_rule("test_rule", grammar_ctx),
+            check_rule("test-rule", grammar_ctx),
             Err(fault::SemanticErr::UnreacheableRuleCase {
                 rule_name,
                 unused_case_number: 4,
-            }) if &rule_name == "test_rule"
+            }) if &rule_name == "test-rule"
         );
     }
 
@@ -143,7 +143,7 @@ mod tests {
             r#"
             data Abc = a | b | c
             rule start = "X"
-            rule test_rule.Abc.Abc =
+            rule test-rule.Abc.Abc =
                 .a.a -> "X"
                 .a.b -> "X"
             "#,
@@ -151,11 +151,11 @@ mod tests {
         .unwrap();
 
         assert_matches!(
-            check_rule("test_rule", grammar_ctx),
+            check_rule("test-rule", grammar_ctx),
             Err(fault::SemanticErr::InexhaustiveCaseAnalysis {
                 rule_name,
                 ..
-            }) if &rule_name == "test_rule"
+            }) if &rule_name == "test-rule"
         );
     }
 

@@ -28,7 +28,7 @@ expression: parse_res
               [
                 {
                   "RuleRef": {
-                    "rule": "odd_or_even_pair",
+                    "rule": "odd-or-even-pair",
                     "args": []
                   }
                 }
@@ -39,7 +39,7 @@ expression: parse_res
       },
       {
         "signature": {
-          "name": "odd_or_even_pair",
+          "name": "odd-or-even-pair",
           "parameter_types": []
         },
         "cases": [

@@ -25,13 +25,15 @@ use typo::{Report, SourcedTypo, Typo};
 type Res<'input, Output> = IResult<&'input str, Output, Report<&'input str>>;
 
 /// Requires one or more non-uppercase alphanumeric characters or the
-/// underscore. Examples: `foo`, `blue42`, `bar_baz_qux`, `1st`, `_`
+/// hyphen.
+/// Examples: `foo`, `blue42`, `bar-baz-qux`, `1st`
+/// Note: a lone hyphen is NOT a valid `lower_ident`.
 fn lower_ident(i: &str) -> Res<IStr> {
-    let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '_';
+    let valid_char = |c: char| (c.is_alphanumeric() && !c.is_uppercase()) || c == '-';
     let (i, name) = context(
         "a lowercase identifier",
         verify(take_while1(valid_char), |txt: &str| {
-            txt != "data" && txt != "rule"
+            txt != "data" && txt != "rule" && txt != "-"
         }),
     )(i)?;
     Ok((i, IStr::new(name)))
@@ -91,7 +93,7 @@ fn quoted(i: &str) -> Res<IStr> {
 /// ```
 /// OR
 /// ```ignore
-/// identifier ( sentential_form_1 | sentential_form_2 | ... )
+/// identifier ( sentential-form-1 | sentential-form-2 | ... )
 /// ```
 fn data_variant_decl(i: &str) -> Res<(DataVariant, Vec<SententialForm>)> {
     context(
@@ -112,7 +114,7 @@ fn data_variant_decl(i: &str) -> Res<(DataVariant, Vec<SententialForm>)> {
 
 /// Parses:
 /// ```ignore
-/// data Foo = variant_1 | variant_2 | variant_n
+/// data Foo = variant-1 | variant-2 | variant-n
 /// ```
 fn data_decl(i: &str) -> Res<DataDecl> {
     let (i, (name, variants)) = preceded(
@@ -160,7 +162,7 @@ fn parse_data_decl() {
 }
 
 /// Arguments passed to a rule ref (call) like: `start.G1.N2` or
-/// `story.short.to_the_point`.
+/// `story.short.to-the-point`.
 fn argument(i: &str) -> Res<Argument> {
     alt((
         map(variable, Argument::Variable),
@@ -180,7 +182,7 @@ fn argument(i: &str) -> Res<Argument> {
     ))(i)
 }
 
-/// Parsed a reference to a rule like: `start.G1.present_tense` or `story`.
+/// Parsed a reference to a rule like: `start.G1.present-tense` or `story`.
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn rule_ref(i: &str) -> Res<RuleRef> {
     let (i, name) = lower_ident(i)?;
@@ -290,7 +292,7 @@ fn pattern(i: &str) -> Res<Pattern> {
 
 /// Parses:
 /// ```ignore
-/// .ident_1.*.ident_2.*.*.ident_n
+/// .ident-1.*.ident-2.*.*.ident-n
 /// ```
 /// Note: spaces are **not** allowed adjacent to the dots (`.`).
 fn guard(i: &str) -> Res<Guard> {
@@ -303,7 +305,7 @@ fn guard(i: &str) -> Res<Guard> {
 
 /// Parses:
 /// ```ignore
-/// sentential_form_1 | sentential_form_2 | sentential_form_n
+/// sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 fn sentential_form_alternatives(i: &str) -> Res<Vec<SententialForm>> {
     separated_nonempty_list(space::allowed::around(char('|')), sentential_form)(i)
@@ -313,7 +315,7 @@ fn sentential_form_alternatives(i: &str) -> Res<Vec<SententialForm>> {
 /// creates a `Case`.
 /// Example:
 /// ```ignore
-/// sentential_form_1 | sentential_form_2 | sentential_form_n
+/// sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 fn guarded_sentential_form_alternatives<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Case> {
     move |i: &'i str| {
@@ -326,7 +328,7 @@ fn guarded_sentential_form_alternatives<'i>(guard: Guard) -> impl Fn(&'i str) ->
 
 /// Parses:
 /// ```ignore
-/// .foo.bar.*.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
+/// .foo.bar.*.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Case> {
     move |i: &'i str| {
@@ -340,7 +342,7 @@ fn arrow_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, C
 
 /// Parses:
 /// ```ignore
-/// .foo.bar.baz { rule_case_1 rule_case_2 rule_case_n }
+/// .foo.bar.baz { rule-case-1 rule-case-2 rule-case-n }
 /// ```
 fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
@@ -361,11 +363,11 @@ fn nested_guard_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, 
 
 /// Parses either:
 /// ```ignore
-/// .foo.bar.*.baz -> sentential_form_1 | sentential_form_2 | sentential_form_n
+/// .foo.bar.*.baz -> sentential-form-1 | sentential-form-2 | sentential-form-n
 /// ```
 /// or:
 /// ```ignore
-/// .foo.bar.*.baz { rule_case_1 rule_case_2 rule_case_n }
+/// .foo.bar.*.baz { rule-case-1 rule-case-2 rule-case-n }
 /// ```
 fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
@@ -390,10 +392,10 @@ fn guarded_rule_case<'i>(curr_guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<C
 
 /// Can either be:
 /// - a list of sentential-form alternatives like:
-///     - `"Once upon a time..." rest_of_story + "." | "The end."`
+///     - `"Once upon a time..." rest-of-story + "." | "The end."`
 /// - or a guarded rule case like:
-///     - `.foo.bar -> some_sentential_form`, or
-///     - `.foo { nested_rule_cases }`
+///     - `.foo.bar -> some-sentential-form`, or
+///     - `.foo { nested-rule-cases }`
 fn top_level_rule_cases<'i>(guard: Guard) -> impl Fn(&'i str) -> Res<'i, Vec<Case>> {
     move |i: &'i str| {
         let flatten = |v: Vec<_>| v.into_iter().flatten().collect();
