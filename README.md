@@ -16,7 +16,7 @@ Generates sentences based on a grammar, but does not parse sentences.
 
 The top-level of the grammar is the `start` rule, and expansion will begin from `start`.
 
-When a rule is referenced (like `odd-or-even-pair` or `number[Bit1][Bit2]`), if it has parameters, they must be passed in at time of call, separated by periods (`.`).
+When a rule is referenced (like `odd-or-even-pair` or `number[Bit1][Bit2]`), if it has parameters, they must be passed in at time of call.
 
 Variables can be suffixed with a number to make them unique. In this example, `Bit2` in the first call to the `number` will always to have the same value as `Bit2` in the second call to the `number` rule.
 
