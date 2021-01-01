@@ -6,7 +6,7 @@ use im::Vector;
 use internship::IStr;
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
+    bytes::complete::{tag, take_while, take_while1, take_while_m_n},
     character::complete::{anychar, char, one_of},
     combinator::{all_consuming, cut, map, opt, recognize, verify},
     error::context,
@@ -82,8 +82,15 @@ fn parse_variable() {
 }
 
 fn quoted(i: &str) -> Res<IStr> {
-    let (i, content) = delimited(char('"'), is_not("\""), char('"'))(i)?;
+    let (i, content) = delimited(char('"'), take_while(|ch| ch != '"'), char('"'))(i)?;
     Ok((i, IStr::new(content)))
+}
+
+#[test]
+fn test_quoted() {
+    use assert_matches::assert_matches;
+    assert_matches!(quoted(r#""QWERTY""#), Ok((rest, x )) if rest == "" && x == IStr::new("QWERTY"));
+    assert_matches!(quoted(r#""""#), Ok((rest, x )) if rest == "" && x == IStr::new(""));
 }
 
 /// Parses:

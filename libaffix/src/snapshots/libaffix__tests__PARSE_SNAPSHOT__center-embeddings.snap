@@ -1,0 +1,473 @@
+---
+source: libaffix/src/lib.rs
+expression: parse_res
+---
+{
+  "Ok": {
+    "data_decls": [
+      {
+        "name": "Subj",
+        "variants": {
+          "dog": [
+            [
+              {
+                "StrLit": "dog"
+              }
+            ]
+          ],
+          "cat": [
+            [
+              {
+                "StrLit": "cat"
+              }
+            ]
+          ],
+          "pterodactly": [
+            [
+              {
+                "StrLit": "pterodactyl"
+              }
+            ]
+          ],
+          "giraffe": [
+            [
+              {
+                "StrLit": "giraffe"
+              }
+            ]
+          ],
+          "ostrich": [
+            [
+              {
+                "StrLit": "ostrich"
+              }
+            ]
+          ],
+          "porcupine": [
+            [
+              {
+                "StrLit": "porcupine"
+              }
+            ]
+          ],
+          "dash-hound": [
+            [
+              {
+                "StrLit": "dash hound"
+              }
+            ]
+          ],
+          "aardvark": [
+            [
+              {
+                "StrLit": "aardvark"
+              }
+            ]
+          ],
+          "hamster": [
+            [
+              {
+                "StrLit": "hamster"
+              }
+            ]
+          ],
+          "sea-turtle": [
+            [
+              {
+                "StrLit": "sea turtle"
+              }
+            ]
+          ],
+          "porpoise": [
+            [
+              {
+                "StrLit": "porpoise"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "rule_decls": [
+      {
+        "signature": {
+          "name": "start",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "center-embedding",
+                    "args": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "center-embedding",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "args": []
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "verb-phrase",
+                    "args": []
+                  }
+                },
+                "Plus",
+                {
+                  "StrLit": "."
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "verb-phrase",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "slept"
+                }
+              ],
+              [
+                {
+                  "StrLit": "killed"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "args": []
+                  }
+                }
+              ],
+              [
+                {
+                  "StrLit": "longed for the sea"
+                }
+              ],
+              [
+                {
+                  "StrLit": "was murdered on the high seas"
+                }
+              ],
+              [
+                {
+                  "StrLit": "visited"
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "args": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "subject",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "RuleRef": {
+                    "rule": "article",
+                    "args": [
+                      {
+                        "Variable": [
+                          "Subj",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "DataVariable": [
+                    "Subj",
+                    ""
+                  ]
+                }
+              ],
+              [
+                {
+                  "RuleRef": {
+                    "rule": "article",
+                    "args": [
+                      {
+                        "Variable": [
+                          "Subj",
+                          ""
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "DataVariable": [
+                    "Subj",
+                    ""
+                  ]
+                },
+                {
+                  "RuleRef": {
+                    "rule": "that",
+                    "args": []
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "subject",
+                    "args": []
+                  }
+                },
+                {
+                  "RuleRef": {
+                    "rule": "intermediate-verb",
+                    "args": []
+                  }
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "article",
+          "parameter_types": [
+            "Subj"
+          ]
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "ostrich"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "an"
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                {
+                  "Variant": "aardvark"
+                }
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "an"
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                }
+              ]
+            ]
+          },
+          {
+            "guard": {
+              "requirements": [
+                "Wild"
+              ]
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "a"
+                }
+              ],
+              [
+                {
+                  "StrLit": "the"
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "that",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "that"
+                }
+              ],
+              [
+                {
+                  "StrLit": "who"
+                }
+              ],
+              [
+                {
+                  "StrLit": ""
+                }
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "signature": {
+          "name": "intermediate-verb",
+          "parameter_types": []
+        },
+        "cases": [
+          {
+            "guard": {
+              "requirements": []
+            },
+            "alternatives": [
+              [
+                {
+                  "StrLit": "loved"
+                }
+              ],
+              [
+                {
+                  "StrLit": "spat upon"
+                }
+              ],
+              [
+                {
+                  "StrLit": "saw"
+                }
+              ],
+              [
+                {
+                  "StrLit": "intended to kill"
+                }
+              ],
+              [
+                {
+                  "StrLit": "arrested"
+                }
+              ],
+              [
+                {
+                  "StrLit": "plucked"
+                }
+              ],
+              [
+                {
+                  "StrLit": "avoided"
+                }
+              ],
+              [
+                {
+                  "StrLit": "was attracted to"
+                }
+              ],
+              [
+                {
+                  "StrLit": "had observed carefully"
+                }
+              ],
+              [
+                {
+                  "StrLit": "annoyed"
+                }
+              ],
+              [
+                {
+                  "StrLit": "consumed"
+                }
+              ],
+              [
+                {
+                  "StrLit": "minimized"
+                }
+              ],
+              [
+                {
+                  "StrLit": "treated harshly in the workplace"
+                }
+              ],
+              [
+                {
+                  "StrLit": "patronized"
+                }
+              ],
+              [
+                {
+                  "StrLit": "complemented"
+                }
+              ],
+              [
+                {
+                  "StrLit": "insulted"
+                }
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
